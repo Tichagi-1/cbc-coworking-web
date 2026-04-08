@@ -30,10 +30,35 @@ const STATUS_COLORS: Record<UnitStatus, string> = {
   vacant: "#EF4444",
   reserved: "#EAB308",
 };
+const STATUS_OPACITY = 0.35;
 
-const UNASSIGNED_COLOR = "#9CA3AF";
+const UNMAPPED_COLOR = "#6B7280";
+const UNMAPPED_OPACITY = 0.25;
+
 const SELECTED_STROKE = "#0057B8";
+const LABEL_AREA_THRESHOLD = 2000; // px² (in scene/image space)
 const DEFAULT_BASE = { width: 1200, height: 800 };
+
+function polygonArea(points: Point[]): number {
+  // Shoelace formula
+  let area = 0;
+  for (let i = 0; i < points.length; i++) {
+    const j = (i + 1) % points.length;
+    area += points[i].x * points[j].y;
+    area -= points[j].x * points[i].y;
+  }
+  return Math.abs(area / 2);
+}
+
+function polygonCentroid(points: Point[]): Point {
+  let cx = 0;
+  let cy = 0;
+  for (const p of points) {
+    cx += p.x;
+    cy += p.y;
+  }
+  return { x: cx / points.length, y: cy / points.length };
+}
 
 export default function FloorCanvas({
   floorPlanUrl,
@@ -148,11 +173,18 @@ export default function FloorCanvas({
 
     const drawZones = () => {
       zones.forEach((z) => {
-        const baseColor = z.status ? STATUS_COLORS[z.status] : UNASSIGNED_COLOR;
+        const isMapped = z.unit_id != null;
+        const baseColor = z.status
+          ? STATUS_COLORS[z.status]
+          : isMapped
+          ? UNMAPPED_COLOR
+          : UNMAPPED_COLOR;
+        const opacity = z.status ? STATUS_OPACITY : UNMAPPED_OPACITY;
         const isSelected = selectedZoneId != null && selectedZoneId === z.id;
+
         const poly = new fabric.Polygon(z.points, {
           fill: baseColor,
-          opacity: 0.4,
+          opacity,
           stroke: isSelected ? SELECTED_STROKE : baseColor,
           strokeWidth: isSelected ? 4 : 2,
           selectable: false,
@@ -163,6 +195,27 @@ export default function FloorCanvas({
         });
         poly.data = z;
         canvas.add(poly);
+
+        // Centroid label for sufficiently large polygons
+        const area = polygonArea(z.points);
+        if (z.label && area > LABEL_AREA_THRESHOLD) {
+          const c = polygonCentroid(z.points);
+          const text = new fabric.Text(z.label, {
+            left: c.x,
+            top: c.y,
+            originX: "center",
+            originY: "center",
+            fontSize: 11,
+            fontWeight: "bold",
+            fontFamily: "Arial, sans-serif",
+            fill: "#ffffff",
+            shadow: "rgba(0,0,0,0.6) 0px 1px 2px",
+            selectable: false,
+            evented: false,
+            objectCaching: false,
+          });
+          canvas.add(text);
+        }
       });
       // After zones are placed, re-apply the responsive scale so the
       // canvas matches the wrapper width.

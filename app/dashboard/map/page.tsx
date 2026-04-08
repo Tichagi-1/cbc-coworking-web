@@ -59,11 +59,15 @@ export default function MapPage() {
   // ── Panel + modals ──────────────────────────────────────────────────────
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [panelLoading, setPanelLoading] = useState(false);
   const [addFloorOpen, setAddFloorOpen] = useState(false);
   const [addFloorSubmitting, setAddFloorSubmitting] = useState(false);
   const [zoneModalOpen, setZoneModalOpen] = useState(false);
   const [zoneModalSubmitting, setZoneModalSubmitting] = useState(false);
   const pendingPolygonPointsRef = useRef<Point[] | null>(null);
+
+  // Per-unit cache for click drill-down (avoids duplicate /units/{id} fetches)
+  const unitCacheRef = useRef<Map<number, Unit>>(new Map());
 
   // ── Edit state ──────────────────────────────────────────────────────────
   const [mode, setMode] = useState<Mode>("view");
@@ -119,25 +123,49 @@ export default function MapPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Load zones + units when floor changes ───────────────────────────────
-  const loadFloorData = useCallback(async (fid: number) => {
-    try {
-      const [zRes, uRes] = await Promise.all([
-        api.get<Zone[]>(`/buildings/${BUILDING_ID}/floors/${fid}/zones`),
-        api.get<Unit[]>(`/units/`, { params: { floor_id: fid } }),
-      ]);
-      setUnits(uRes.data);
-      const statusById = new Map(uRes.data.map((u) => [u.id, u.status]));
-      const enriched = zRes.data.map((z) => ({
-        ...z,
-        status: z.unit_id ? statusById.get(z.unit_id) : undefined,
-      }));
-      setSavedZones(enriched);
-      setPendingZones([]);
-    } catch (e) {
-      setError((e as Error)?.message || "Failed to load floor data");
-    }
-  }, []);
+  // ── Load floor data: zones (live) or snapshot (history) ─────────────────
+  const loadFloorData = useCallback(
+    async (fid: number, viewMode: Mode, date: string) => {
+      try {
+        // Always refresh units for the floor — drives stats, panel cache,
+        // and the live status join. Warms the per-unit cache too.
+        const uRes = await api.get<Unit[]>(`/units/`, {
+          params: { floor_id: fid },
+        });
+        setUnits(uRes.data);
+        uRes.data.forEach((u) => unitCacheRef.current.set(u.id, u));
+
+        let enriched: Zone[];
+        if (viewMode === "history") {
+          const sRes = await api.get<Zone[]>(
+            `/buildings/${BUILDING_ID}/floors/${fid}/snapshot`,
+            { params: { date } }
+          );
+          // The snapshot endpoint already returns status synthesized from
+          // lease history at `date`.
+          enriched = sRes.data;
+        } else {
+          const zRes = await api.get<Zone[]>(
+            `/buildings/${BUILDING_ID}/floors/${fid}/zones`
+          );
+          const unitById = new Map(uRes.data.map((u) => [u.id, u]));
+          enriched = zRes.data.map((z) => {
+            const unit = z.unit_id ? unitById.get(z.unit_id) : undefined;
+            return {
+              ...z,
+              status: unit?.status,
+              label: z.label || unit?.name || null,
+            };
+          });
+        }
+        setSavedZones(enriched);
+        setPendingZones([]);
+      } catch (e) {
+        setError((e as Error)?.message || "Failed to load floor data");
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (floorId == null) {
@@ -146,8 +174,21 @@ export default function MapPage() {
       setUnits([]);
       return;
     }
-    loadFloorData(floorId);
-  }, [floorId, loadFloorData]);
+    loadFloorData(floorId, mode, historyDate);
+  }, [floorId, mode, historyDate, loadFloorData]);
+
+  // ── Per-unit cache helper (used by zone click) ──────────────────────────
+  const getUnit = useCallback(async (id: number): Promise<Unit | null> => {
+    const cached = unitCacheRef.current.get(id);
+    if (cached) return cached;
+    try {
+      const res = await api.get<Unit>(`/units/${id}`);
+      unitCacheRef.current.set(id, res.data);
+      return res.data;
+    } catch {
+      return null;
+    }
+  }, []);
 
   // ── Derived ─────────────────────────────────────────────────────────────
   const currentFloor = useMemo(
@@ -160,12 +201,25 @@ export default function MapPage() {
     [savedZones, pendingZones]
   );
 
+  // Stats for the legend row
+  const occupiedCount = useMemo(
+    () => units.filter((u) => u.status === "occupied").length,
+    [units]
+  );
+  const totalUnits = units.length;
+
   // ── Handlers: zone click / select ───────────────────────────────────────
-  function handleZoneClick(zone: Zone) {
+  async function handleZoneClick(zone: Zone) {
     if (zone.unit_id == null) return;
-    const unit = units.find((u) => u.id === zone.unit_id) ?? null;
-    setSelectedUnit(unit);
+    // Show panel immediately with whatever's already in cache, then
+    // refetch in background to make sure we display the latest unit data.
+    const cached = unitCacheRef.current.get(zone.unit_id) ?? null;
+    setSelectedUnit(cached);
     setPanelOpen(true);
+    setPanelLoading(true);
+    const fresh = await getUnit(zone.unit_id);
+    setSelectedUnit(fresh);
+    setPanelLoading(false);
   }
 
   function handleZoneSelect(zone: Zone) {
@@ -276,7 +330,7 @@ export default function MapPage() {
         `/buildings/${BUILDING_ID}/floors/${floorId}/zones`,
         payload
       );
-      await loadFloorData(floorId);
+      await loadFloorData(floorId, mode, historyDate);
       setSelectedZoneId(null);
     } catch (e) {
       setError((e as Error)?.message || "Failed to save zones");
@@ -463,8 +517,8 @@ export default function MapPage() {
         </div>
       )}
 
-      {/* STATUS LEGEND */}
-      <div className="mt-4 flex items-center gap-5 text-xs text-gray-600">
+      {/* STATUS LEGEND + STATS */}
+      <div className="mt-4 flex flex-wrap items-center gap-5 text-xs text-gray-600">
         <span className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-sm bg-green-500/40 border border-green-600" />
           Occupied
@@ -477,6 +531,20 @@ export default function MapPage() {
           <span className="w-3 h-3 rounded-sm bg-yellow-500/40 border border-yellow-600" />
           Reserved
         </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm bg-gray-500/30 border border-gray-500" />
+          Unmapped
+        </span>
+
+        <span className="font-medium text-gray-800">
+          {occupiedCount} of {totalUnits} units occupied
+          {totalUnits > 0 && (
+            <span className="text-gray-500 ml-1">
+              ({Math.round((occupiedCount / totalUnits) * 100)}%)
+            </span>
+          )}
+        </span>
+
         {building && (
           <span className="ml-auto text-gray-500">
             {building.name} · {building.address}
@@ -504,6 +572,7 @@ export default function MapPage() {
         unit={selectedUnit}
         open={panelOpen}
         role={role}
+        loading={panelLoading}
         onClose={() => setPanelOpen(false)}
       />
     </div>
