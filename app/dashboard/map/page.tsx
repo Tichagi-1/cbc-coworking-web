@@ -379,28 +379,34 @@ export default function MapPage() {
       )}
 
       {/* CANVAS AREA */}
-      {floorId == null ? (
-        <div className="text-sm text-gray-500 p-8 border border-dashed border-gray-300 rounded-md">
-          No floors yet. {isAdmin && "Click \u201c+ Add Floor\u201d to create one."}
-        </div>
-      ) : !planUrl ? (
-        <UploadDropzone
-          uploading={uploading}
-          onFile={handleFileUpload}
-          canUpload={isAdmin}
-        />
-      ) : (
-        <FloorCanvas
-          floorPlanUrl={planUrl}
-          zones={allZones}
-          mode={mode}
-          drawingEnabled={drawingEnabled}
-          selectedZoneId={selectedZoneId}
-          onZoneClick={handleZoneClick}
-          onZoneSelect={handleZoneSelect}
-          onZoneCreated={handleZoneCreated}
-        />
-      )}
+      <div
+        className="w-full overflow-auto"
+        style={{ height: "calc(100vh - 200px)" }}
+      >
+        {floorId == null ? (
+          <div className="text-sm text-gray-500 p-8 border border-dashed border-gray-300 rounded-md">
+            No floors yet.{" "}
+            {isAdmin && "Click \u201c+ Add Floor\u201d to create one."}
+          </div>
+        ) : !planUrl ? (
+          <UploadDropzone
+            uploading={uploading}
+            onFile={handleFileUpload}
+            canUpload={isAdmin}
+          />
+        ) : (
+          <FloorCanvas
+            floorPlanUrl={planUrl}
+            zones={allZones}
+            mode={mode}
+            drawingEnabled={drawingEnabled}
+            selectedZoneId={selectedZoneId}
+            onZoneClick={handleZoneClick}
+            onZoneSelect={handleZoneSelect}
+            onZoneCreated={handleZoneCreated}
+          />
+        )}
+      </div>
 
       {/* EDIT MODE TOOLBAR */}
       {mode === "edit" && planUrl && (

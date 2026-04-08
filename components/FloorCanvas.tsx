@@ -33,6 +33,7 @@ const STATUS_COLORS: Record<UnitStatus, string> = {
 
 const UNASSIGNED_COLOR = "#9CA3AF";
 const SELECTED_STROKE = "#0057B8";
+const DEFAULT_BASE = { width: 1200, height: 800 };
 
 export default function FloorCanvas({
   floorPlanUrl,
@@ -44,9 +45,16 @@ export default function FloorCanvas({
   onZoneSelect,
   onZoneCreated,
 }: FloorCanvasProps) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasElRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<any>(null);
   const fabricLibRef = useRef<any>(null);
+
+  // Natural (unscaled) base size — image dimensions when a plan is loaded,
+  // otherwise the default. All polygon coordinates live in this space.
+  const baseSizeRef = useRef<{ width: number; height: number }>(DEFAULT_BASE);
+
+  // In-progress drawing
   const drawingPointsRef = useRef<Point[]>([]);
   const drawingMarkersRef = useRef<any[]>([]);
 
@@ -89,6 +97,38 @@ export default function FloorCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [floorPlanUrl, zones, mode, selectedZoneId]);
 
+  // ── ResizeObserver: rescale canvas when wrapper width changes ───────────
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+
+    const observer = new ResizeObserver(() => applyResponsiveScale());
+    observer.observe(wrapper);
+
+    // Apply once immediately in case the canvas is already initialized
+    applyResponsiveScale();
+
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Helpers ─────────────────────────────────────────────────────────────
+  function applyResponsiveScale() {
+    const canvas = fabricCanvasRef.current;
+    const wrapper = wrapperRef.current;
+    if (!canvas || !wrapper) return;
+    const wrapperWidth = wrapper.clientWidth;
+    if (wrapperWidth <= 0) return;
+
+    const { width: baseW, height: baseH } = baseSizeRef.current;
+    const scale = wrapperWidth / baseW;
+
+    canvas.setZoom(scale);
+    canvas.setWidth(baseW * scale);
+    canvas.setHeight(baseH * scale);
+    canvas.requestRenderAll();
+  }
+
   function clearDrawingState() {
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
@@ -124,7 +164,9 @@ export default function FloorCanvas({
         poly.data = z;
         canvas.add(poly);
       });
-      canvas.renderAll();
+      // After zones are placed, re-apply the responsive scale so the
+      // canvas matches the wrapper width.
+      applyResponsiveScale();
     };
 
     if (floorPlanUrl) {
@@ -132,12 +174,16 @@ export default function FloorCanvas({
         floorPlanUrl,
         (img: any) => {
           if (!img) {
+            baseSizeRef.current = DEFAULT_BASE;
             drawZones();
             return;
           }
           img.set({ selectable: false, evented: false });
-          const w = img.width || 1200;
-          const h = img.height || 800;
+          const w = img.width || DEFAULT_BASE.width;
+          const h = img.height || DEFAULT_BASE.height;
+          baseSizeRef.current = { width: w, height: h };
+          // Set canvas to natural size first; applyResponsiveScale below
+          // will scale it to fit the wrapper.
           canvas.setWidth(w);
           canvas.setHeight(h);
           canvas.setBackgroundImage(img, () => {
@@ -147,8 +193,9 @@ export default function FloorCanvas({
         { crossOrigin: "anonymous" }
       );
     } else {
-      canvas.setWidth(1200);
-      canvas.setHeight(800);
+      baseSizeRef.current = DEFAULT_BASE;
+      canvas.setWidth(DEFAULT_BASE.width);
+      canvas.setHeight(DEFAULT_BASE.height);
       drawZones();
     }
   }
@@ -169,14 +216,15 @@ export default function FloorCanvas({
 
       // EDIT mode
       if (target?.data) {
-        // Clicked an existing polygon → select it
         onZoneSelect?.(target.data as Zone);
         return;
       }
 
       if (!drawingEnabled) return;
 
-      // Empty canvas click → drop a drawing point
+      // Empty canvas click → drop a drawing point.
+      // canvas.getPointer() returns coordinates in scene/image space,
+      // already adjusted for the current zoom factor.
       const pointer = canvas.getPointer(opt.e);
       const point: Point = { x: pointer.x, y: pointer.y };
       drawingPointsRef.current.push(point);
@@ -191,7 +239,7 @@ export default function FloorCanvas({
       });
       drawingMarkersRef.current.push(marker);
       canvas.add(marker);
-      canvas.renderAll();
+      canvas.requestRenderAll();
     }
 
     function handleDoubleClick() {
@@ -199,12 +247,12 @@ export default function FloorCanvas({
       const points = drawingPointsRef.current;
       if (points.length < 3) {
         clearDrawingState();
-        canvas.renderAll();
+        canvas.requestRenderAll();
         return;
       }
       const finished = [...points];
       clearDrawingState();
-      canvas.renderAll();
+      canvas.requestRenderAll();
       onZoneCreated?.(finished);
     }
 
@@ -218,7 +266,10 @@ export default function FloorCanvas({
   }, [mode, drawingEnabled, onZoneClick, onZoneSelect, onZoneCreated]);
 
   return (
-    <div className="overflow-auto bg-gray-100 border border-gray-200 rounded-md inline-block max-w-full">
+    <div
+      ref={wrapperRef}
+      className="w-full overflow-hidden bg-gray-100 border border-gray-200 rounded-md"
+    >
       <canvas ref={canvasElRef} />
     </div>
   );
