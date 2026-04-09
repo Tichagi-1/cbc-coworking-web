@@ -687,38 +687,91 @@ export default function MapPage() {
       )}
 
       {/* STATUS LEGEND + STATS */}
-      <div className="mt-4 flex flex-wrap items-center gap-5 text-xs text-gray-600">
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-sm bg-green-500/40 border border-green-600" />
-          Occupied
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-sm bg-red-500/40 border border-red-600" />
-          Vacant
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-sm bg-yellow-500/40 border border-yellow-600" />
-          Reserved
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-sm bg-gray-500/30 border border-gray-500" />
-          Unmapped
-        </span>
+      <div className="mt-4 space-y-2 text-xs text-gray-600">
+        {/* Row 1: status fills */}
+        <div className="flex flex-wrap items-center gap-5">
+          <span className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold w-14">
+            Status
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span
+              className="w-3 h-3 rounded-sm border border-green-600"
+              style={{ backgroundColor: "rgba(34, 197, 94, 0.45)" }}
+            />
+            Occupied
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span
+              className="w-3 h-3 rounded-sm border border-red-600"
+              style={{ backgroundColor: "rgba(239, 68, 68, 0.45)" }}
+            />
+            Vacant
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span
+              className="w-3 h-3 rounded-sm border border-yellow-600"
+              style={{ backgroundColor: "rgba(234, 179, 8, 0.45)" }}
+            />
+            Reserved
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span
+              className="w-3 h-3 rounded-sm border border-gray-500"
+              style={{ backgroundColor: "rgba(156, 163, 175, 0.20)" }}
+            />
+            Unmapped
+          </span>
 
-        <span className="font-medium text-gray-800">
-          {occupiedCount} of {totalUnits} units occupied
-          {totalUnits > 0 && (
-            <span className="text-gray-500 ml-1">
-              ({Math.round((occupiedCount / totalUnits) * 100)}%)
+          <span className="font-medium text-gray-800 ml-2">
+            {occupiedCount} of {totalUnits} units occupied
+            {totalUnits > 0 && (
+              <span className="text-gray-500 ml-1">
+                ({Math.round((occupiedCount / totalUnits) * 100)}%)
+              </span>
+            )}
+          </span>
+
+          {building && (
+            <span className="ml-auto text-gray-500">
+              {building.name} · {building.address}
             </span>
           )}
-        </span>
+        </div>
 
-        {building && (
-          <span className="ml-auto text-gray-500">
-            {building.name} · {building.address}
+        {/* Row 2: type borders */}
+        <div className="flex flex-wrap items-center gap-5">
+          <span className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold w-14">
+            Type
           </span>
-        )}
+          <span className="flex items-center gap-1.5">
+            <span
+              className="w-3 h-3 rounded-sm bg-white"
+              style={{ border: "2px solid #003DA5" }}
+            />
+            Office
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span
+              className="w-3 h-3 rounded-sm bg-white"
+              style={{ border: "2px solid #7C3AED" }}
+            />
+            Meeting Room
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span
+              className="w-3 h-3 rounded-sm bg-white"
+              style={{ border: "2px solid #0891B2" }}
+            />
+            Hot Desk
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span
+              className="w-3 h-3 rounded-sm bg-white"
+              style={{ border: "2px solid #059669" }}
+            />
+            Open Space
+          </span>
+        </div>
       </div>
 
       {/* MODALS / PANELS */}

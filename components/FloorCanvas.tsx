@@ -25,28 +25,40 @@ interface FloorCanvasProps {
   onZoneCreated?: (points: Point[]) => void;
 }
 
-// Fill color comes from the unit type (what kind of space it is)
-const TYPE_COLORS: Record<UnitType, string> = {
+// Fill color comes from the current status (most important — instantly
+// shows availability at a glance).
+const STATUS_FILL: Record<UnitStatus, string> = {
+  occupied: "#22C55E",
+  vacant: "#EF4444",
+  reserved: "#EAB308",
+};
+const STATUS_FILL_OPACITY = 0.45;
+
+// Border color comes from the unit type (what kind of space it is).
+const TYPE_BORDER: Record<UnitType, string> = {
   office: "#003DA5", // CBC Blue
   meeting_room: "#7C3AED", // purple
   hot_desk: "#0891B2", // cyan
   open_space: "#059669", // emerald
 };
-const TYPE_FILL_OPACITY = 0.35;
+const TYPE_BORDER_WIDTH = 2.5;
 
-// Border color comes from the current status
-const STATUS_BORDER: Record<UnitStatus, string> = {
-  occupied: "#22C55E",
-  vacant: "#EF4444",
-  reserved: "#EAB308",
+// One-letter indicator drawn in the top-left corner of each polygon
+const TYPE_LETTER: Record<UnitType, string> = {
+  office: "O",
+  meeting_room: "M",
+  hot_desk: "H",
+  open_space: "S",
 };
 
-const UNMAPPED_FILL = "#6B7280";
-const UNMAPPED_FILL_OPACITY = 0.25;
-const UNMAPPED_BORDER = "#9CA3AF";
+const UNMAPPED_FILL = "#9CA3AF";
+const UNMAPPED_FILL_OPACITY = 0.2;
+const UNKNOWN_TYPE_BORDER = "#6B7280";
+const UNKNOWN_TYPE_BORDER_WIDTH = 1.5;
 
 const SELECTED_STROKE = "#0057B8";
 const LABEL_AREA_THRESHOLD = 2000; // px² (in scene/image space)
+const INDICATOR_AREA_THRESHOLD = 500; // px² for the letter indicator
 const DEFAULT_BASE = { width: 1200, height: 800 };
 
 function polygonArea(points: Point[]): number {
@@ -183,21 +195,29 @@ export default function FloorCanvas({
 
     const drawZones = () => {
       zones.forEach((z) => {
-        const isMapped = z.unit_id != null;
-        const fillColor = isMapped
-          ? TYPE_COLORS[z.zone_type as UnitType] ?? UNMAPPED_FILL
-          : UNMAPPED_FILL;
-        const fillOpacity = isMapped ? TYPE_FILL_OPACITY : UNMAPPED_FILL_OPACITY;
-        const borderColor = z.status
-          ? STATUS_BORDER[z.status]
-          : UNMAPPED_BORDER;
+        // ── Fill: status (or unmapped fallback) ───────────────────────────
+        const fillColor = z.status ? STATUS_FILL[z.status] : UNMAPPED_FILL;
+        const fillOpacity = z.status
+          ? STATUS_FILL_OPACITY
+          : UNMAPPED_FILL_OPACITY;
+
+        // ── Border: type (or unknown fallback) ────────────────────────────
+        const knownType = z.zone_type as UnitType;
+        const hasKnownType = knownType in TYPE_BORDER;
+        const borderColor = hasKnownType
+          ? TYPE_BORDER[knownType]
+          : UNKNOWN_TYPE_BORDER;
+        const borderWidth = hasKnownType
+          ? TYPE_BORDER_WIDTH
+          : UNKNOWN_TYPE_BORDER_WIDTH;
+
         const isSelected = selectedZoneId != null && selectedZoneId === z.id;
 
         const poly = new fabric.Polygon(z.points, {
           fill: fillColor,
           opacity: fillOpacity,
           stroke: isSelected ? SELECTED_STROKE : borderColor,
-          strokeWidth: isSelected ? 4 : 2,
+          strokeWidth: isSelected ? 4 : borderWidth,
           selectable: false,
           hasControls: false,
           hasBorders: false,
@@ -207,8 +227,29 @@ export default function FloorCanvas({
         poly.data = z;
         canvas.add(poly);
 
-        // Centroid label for sufficiently large polygons
         const area = polygonArea(z.points);
+
+        // ── Type indicator letter (top-left corner of polygon) ───────────
+        if (hasKnownType && area > INDICATOR_AREA_THRESHOLD) {
+          const minX = Math.min(...z.points.map((p) => p.x));
+          const minY = Math.min(...z.points.map((p) => p.y));
+          const indicator = new fabric.Text(TYPE_LETTER[knownType], {
+            left: minX + 4,
+            top: minY + 2,
+            originX: "left",
+            originY: "top",
+            fontSize: 9,
+            fontWeight: "bold",
+            fontFamily: "Arial, sans-serif",
+            fill: "#374151",
+            selectable: false,
+            evented: false,
+            objectCaching: false,
+          });
+          canvas.add(indicator);
+        }
+
+        // ── Centroid label (unit name) for sufficiently large polygons ──
         if (z.label && area > LABEL_AREA_THRESHOLD) {
           const c = polygonCentroid(z.points);
           const text = new fabric.Text(z.label, {
