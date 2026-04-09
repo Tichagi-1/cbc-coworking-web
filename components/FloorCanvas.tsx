@@ -4,7 +4,7 @@
 // fabric@5 has no upstream d.ts; localize `any` to this file.
 
 import { useEffect, useRef } from "react";
-import type { Point, Zone, UnitStatus } from "@/lib/types";
+import type { Point, Zone, UnitStatus, UnitType } from "@/lib/types";
 
 type Mode = "view" | "edit" | "history";
 
@@ -25,15 +25,25 @@ interface FloorCanvasProps {
   onZoneCreated?: (points: Point[]) => void;
 }
 
-const STATUS_COLORS: Record<UnitStatus, string> = {
+// Fill color comes from the unit type (what kind of space it is)
+const TYPE_COLORS: Record<UnitType, string> = {
+  office: "#003DA5", // CBC Blue
+  meeting_room: "#7C3AED", // purple
+  hot_desk: "#0891B2", // cyan
+  open_space: "#059669", // emerald
+};
+const TYPE_FILL_OPACITY = 0.35;
+
+// Border color comes from the current status
+const STATUS_BORDER: Record<UnitStatus, string> = {
   occupied: "#22C55E",
   vacant: "#EF4444",
   reserved: "#EAB308",
 };
-const STATUS_OPACITY = 0.35;
 
-const UNMAPPED_COLOR = "#6B7280";
-const UNMAPPED_OPACITY = 0.25;
+const UNMAPPED_FILL = "#6B7280";
+const UNMAPPED_FILL_OPACITY = 0.25;
+const UNMAPPED_BORDER = "#9CA3AF";
 
 const SELECTED_STROKE = "#0057B8";
 const LABEL_AREA_THRESHOLD = 2000; // px² (in scene/image space)
@@ -174,18 +184,19 @@ export default function FloorCanvas({
     const drawZones = () => {
       zones.forEach((z) => {
         const isMapped = z.unit_id != null;
-        const baseColor = z.status
-          ? STATUS_COLORS[z.status]
-          : isMapped
-          ? UNMAPPED_COLOR
-          : UNMAPPED_COLOR;
-        const opacity = z.status ? STATUS_OPACITY : UNMAPPED_OPACITY;
+        const fillColor = isMapped
+          ? TYPE_COLORS[z.zone_type as UnitType] ?? UNMAPPED_FILL
+          : UNMAPPED_FILL;
+        const fillOpacity = isMapped ? TYPE_FILL_OPACITY : UNMAPPED_FILL_OPACITY;
+        const borderColor = z.status
+          ? STATUS_BORDER[z.status]
+          : UNMAPPED_BORDER;
         const isSelected = selectedZoneId != null && selectedZoneId === z.id;
 
         const poly = new fabric.Polygon(z.points, {
-          fill: baseColor,
-          opacity,
-          stroke: isSelected ? SELECTED_STROKE : baseColor,
+          fill: fillColor,
+          opacity: fillOpacity,
+          stroke: isSelected ? SELECTED_STROKE : borderColor,
           strokeWidth: isSelected ? 4 : 2,
           selectable: false,
           hasControls: false,

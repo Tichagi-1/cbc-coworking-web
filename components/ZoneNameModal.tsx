@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState, useEffect } from "react";
-import type { UnitType } from "@/lib/types";
+import type { RatePeriod, UnitType } from "@/lib/types";
 
 export interface ZoneFormData {
   name: string;
@@ -9,6 +9,7 @@ export interface ZoneFormData {
   area_m2: number;
   seats: number;
   monthly_rate: number;
+  rate_period: RatePeriod;
 }
 
 interface ZoneNameModalProps {
@@ -17,6 +18,25 @@ interface ZoneNameModalProps {
   submitting?: boolean;
   onClose: () => void;
   onSubmit: (data: ZoneFormData) => void;
+}
+
+const FLEX_PERIODS: { value: RatePeriod; label: string }[] = [
+  { value: "day", label: "per day" },
+  { value: "biweekly", label: "per 2 weeks" },
+  { value: "month", label: "per month" },
+];
+
+function defaultPeriodForType(t: UnitType): RatePeriod {
+  if (t === "meeting_room") return "hour";
+  if (t === "office") return "month";
+  // hot_desk / open_space — user picks; default to month
+  return "month";
+}
+
+function rateLabelForType(t: UnitType): string {
+  if (t === "meeting_room") return "Rate $/hour";
+  if (t === "office") return "Rate $/month";
+  return "Rate $";
 }
 
 export default function ZoneNameModal({
@@ -31,6 +51,9 @@ export default function ZoneNameModal({
   const [area, setArea] = useState("0");
   const [seats, setSeats] = useState("1");
   const [rate, setRate] = useState("0");
+  const [ratePeriod, setRatePeriod] = useState<RatePeriod>(
+    defaultPeriodForType(defaultType)
+  );
 
   useEffect(() => {
     if (open) {
@@ -39,8 +62,15 @@ export default function ZoneNameModal({
       setArea("0");
       setSeats("1");
       setRate("0");
+      setRatePeriod(defaultPeriodForType(defaultType));
     }
   }, [open, defaultType]);
+
+  // When the user changes type within the form, update period to a sensible
+  // default for the new type.
+  useEffect(() => {
+    setRatePeriod(defaultPeriodForType(unitType));
+  }, [unitType]);
 
   if (!open) return null;
 
@@ -52,8 +82,11 @@ export default function ZoneNameModal({
       area_m2: parseFloat(area) || 0,
       seats: parseInt(seats, 10) || 1,
       monthly_rate: parseFloat(rate) || 0,
+      rate_period: ratePeriod,
     });
   }
+
+  const showFlexPeriod = unitType === "hot_desk" || unitType === "open_space";
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
@@ -124,18 +157,40 @@ export default function ZoneNameModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Rate $
+              {rateLabelForType(unitType)}
             </label>
             <input
               type="number"
               min="0"
-              step="50"
               value={rate}
               onChange={(e) => setRate(e.target.value)}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 focus:border-cbc-blue focus:ring-1 focus:ring-cbc-blue outline-none"
             />
           </div>
         </div>
+
+        {showFlexPeriod && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Pricing period
+            </label>
+            <div className="flex gap-4 text-sm text-gray-700">
+              {FLEX_PERIODS.map((p) => (
+                <label key={p.value} className="inline-flex items-center gap-1.5">
+                  <input
+                    type="radio"
+                    name="rate_period"
+                    value={p.value}
+                    checked={ratePeriod === p.value}
+                    onChange={() => setRatePeriod(p.value)}
+                    className="text-cbc-blue focus:ring-cbc-blue"
+                  />
+                  {p.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="flex justify-end gap-2 pt-2">
           <button

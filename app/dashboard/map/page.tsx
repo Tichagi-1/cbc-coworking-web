@@ -22,9 +22,10 @@ import type {
   UserRole,
   Zone,
 } from "@/lib/types";
-import ZonePanel from "@/components/ZonePanel";
+import ZonePanel, { UnitPatchPayload } from "@/components/ZonePanel";
 import AddFloorModal from "@/components/AddFloorModal";
 import ZoneNameModal, { ZoneFormData } from "@/components/ZoneNameModal";
+import ConfirmModal from "@/components/ConfirmModal";
 
 // FloorCanvas uses fabric (browser-only) — load with SSR disabled.
 const FloorCanvas = dynamic(() => import("@/components/FloorCanvas"), {
@@ -60,11 +61,19 @@ export default function MapPage() {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelLoading, setPanelLoading] = useState(false);
+  const [panelSaving, setPanelSaving] = useState(false);
   const [addFloorOpen, setAddFloorOpen] = useState(false);
   const [addFloorSubmitting, setAddFloorSubmitting] = useState(false);
   const [zoneModalOpen, setZoneModalOpen] = useState(false);
   const [zoneModalSubmitting, setZoneModalSubmitting] = useState(false);
   const pendingPolygonPointsRef = useRef<Point[] | null>(null);
+
+  // Floor edit/delete
+  const [renamingFloorId, setRenamingFloorId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameSubmitting, setRenameSubmitting] = useState(false);
+  const [deleteFloorOpen, setDeleteFloorOpen] = useState(false);
+  const [deleteFloorSubmitting, setDeleteFloorSubmitting] = useState(false);
 
   // Per-unit cache for click drill-down (avoids duplicate /units/{id} fetches)
   const unitCacheRef = useRef<Map<number, Unit>>(new Map());
@@ -243,6 +252,81 @@ export default function MapPage() {
     }
   }
 
+  // ── Handlers: rename floor ──────────────────────────────────────────────
+  function startRenameFloor() {
+    if (!currentFloor) return;
+    setRenameValue(currentFloor.name ?? "");
+    setRenamingFloorId(currentFloor.id);
+  }
+
+  function cancelRenameFloor() {
+    setRenamingFloorId(null);
+    setRenameValue("");
+  }
+
+  async function submitRenameFloor() {
+    if (renamingFloorId == null) return;
+    setRenameSubmitting(true);
+    try {
+      await api.patch<Floor>(
+        `/buildings/${BUILDING_ID}/floors/${renamingFloorId}`,
+        { name: renameValue.trim() || null }
+      );
+      await loadFloors(renamingFloorId);
+      cancelRenameFloor();
+    } catch (e) {
+      setError((e as Error)?.message || "Failed to rename floor");
+    } finally {
+      setRenameSubmitting(false);
+    }
+  }
+
+  // ── Handlers: delete floor ──────────────────────────────────────────────
+  async function handleDeleteFloor() {
+    if (floorId == null) return;
+    setDeleteFloorSubmitting(true);
+    try {
+      await api.delete(`/buildings/${BUILDING_ID}/floors/${floorId}`);
+      setDeleteFloorOpen(false);
+      // Reload list and let it auto-select the first remaining floor
+      const fresh = await api.get<Floor[]>(
+        `/buildings/${BUILDING_ID}/floors`
+      );
+      setFloors(fresh.data);
+      setFloorId(fresh.data[0]?.id ?? null);
+    } catch (e) {
+      setError((e as Error)?.message || "Failed to delete floor");
+    } finally {
+      setDeleteFloorSubmitting(false);
+    }
+  }
+
+  // ── Handlers: PATCH unit from panel ─────────────────────────────────────
+  async function handleUnitSave(
+    id: number,
+    patch: UnitPatchPayload
+  ): Promise<Unit | null> {
+    setPanelSaving(true);
+    try {
+      const res = await api.patch<Unit>(`/units/${id}`, patch);
+      const fresh = res.data;
+      // Update cache, units list, and currently displayed unit
+      unitCacheRef.current.set(fresh.id, fresh);
+      setUnits((prev) => prev.map((u) => (u.id === fresh.id ? fresh : u)));
+      setSelectedUnit(fresh);
+      // Refresh canvas zones so border (status) updates
+      if (floorId != null) {
+        await loadFloorData(floorId, mode, historyDate);
+      }
+      return fresh;
+    } catch (e) {
+      setError((e as Error)?.message || "Failed to save unit");
+      return null;
+    } finally {
+      setPanelSaving(false);
+    }
+  }
+
   // ── Handlers: upload floor plan ─────────────────────────────────────────
   async function handleFileUpload(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -284,6 +368,7 @@ export default function MapPage() {
         area_m2: data.area_m2,
         seats: data.seats,
         monthly_rate: data.monthly_rate,
+        rate_period: data.rate_period,
       });
       const newUnit = unitRes.data;
       setUnits((prev) => [...prev, newUnit]);
@@ -363,18 +448,102 @@ export default function MapPage() {
           <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
             Floor
           </label>
-          <select
-            value={floorId ?? ""}
-            onChange={(e) => setFloorId(Number(e.target.value) || null)}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white min-w-[180px]"
-          >
-            {floors.length === 0 && <option value="">— none —</option>}
-            {floors.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name ?? `Floor ${f.number}`}
-              </option>
-            ))}
-          </select>
+          {renamingFloorId != null ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submitRenameFloor();
+                  if (e.key === "Escape") cancelRenameFloor();
+                }}
+                autoFocus
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white min-w-[180px]"
+              />
+              <button
+                onClick={submitRenameFloor}
+                disabled={renameSubmitting}
+                className="px-3 py-2 text-sm font-medium text-white bg-cbc-blue hover:bg-cbc-bright-blue rounded-md disabled:opacity-50"
+              >
+                {renameSubmitting ? "…" : "Save"}
+              </button>
+              <button
+                onClick={cancelRenameFloor}
+                disabled={renameSubmitting}
+                className="px-3 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1">
+              <select
+                value={floorId ?? ""}
+                onChange={(e) => setFloorId(Number(e.target.value) || null)}
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white min-w-[180px]"
+              >
+                {floors.length === 0 && <option value="">— none —</option>}
+                {floors.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name ?? `Floor ${f.number}`}
+                  </option>
+                ))}
+              </select>
+
+              {isAdmin && currentFloor && (
+                <>
+                  <button
+                    type="button"
+                    onClick={startRenameFloor}
+                    title="Rename floor"
+                    className="p-2 text-gray-500 hover:text-cbc-blue rounded-md hover:bg-gray-100"
+                  >
+                    {/* pencil icon (inline svg) */}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteFloorOpen(true)}
+                    title="Delete floor"
+                    className="p-2 text-gray-500 hover:text-red-600 rounded-md hover:bg-gray-100"
+                  >
+                    {/* trash icon */}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                      <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {isAdmin && (
@@ -573,7 +742,26 @@ export default function MapPage() {
         open={panelOpen}
         role={role}
         loading={panelLoading}
+        saving={panelSaving}
         onClose={() => setPanelOpen(false)}
+        onSave={handleUnitSave}
+      />
+
+      <ConfirmModal
+        open={deleteFloorOpen}
+        title="Delete floor"
+        message={
+          currentFloor
+            ? `Permanently delete "${
+                currentFloor.name ?? `Floor ${currentFloor.number}`
+              }" and all of its zones? Units linked to this floor will remain.`
+            : "Delete this floor?"
+        }
+        confirmLabel="Delete"
+        destructive
+        submitting={deleteFloorSubmitting}
+        onCancel={() => setDeleteFloorOpen(false)}
+        onConfirm={handleDeleteFloor}
       />
     </div>
   );

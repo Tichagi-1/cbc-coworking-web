@@ -39,6 +39,8 @@ export interface Zone {
   status?: UnitStatus;
 }
 
+export type RatePeriod = "month" | "day" | "biweekly" | "hour";
+
 export interface Unit {
   id: number;
   floor_id: number;
@@ -48,6 +50,8 @@ export interface Unit {
   area_m2: number;
   seats: number;
   monthly_rate: number;
+  rate_period: RatePeriod | null;
+  tenant_name: string | null;
   description: string | null;
   photos: string[] | null;
 }
