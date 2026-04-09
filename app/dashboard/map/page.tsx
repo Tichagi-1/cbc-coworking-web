@@ -807,7 +807,7 @@ export default function MapPage() {
           currentFloor
             ? `Permanently delete "${
                 currentFloor.name ?? `Floor ${currentFloor.number}`
-              }" and all of its zones? Units linked to this floor will remain.`
+              }"? This also removes all of its units, zones, leases, meeting rooms, and bookings. This cannot be undone.`
             : "Delete this floor?"
         }
         confirmLabel="Delete"
