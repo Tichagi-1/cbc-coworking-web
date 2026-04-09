@@ -62,3 +62,50 @@ export interface AuthResponse {
   role: UserRole;
   name: string;
 }
+
+export interface Tenant {
+  id: number;
+  user_id: number;
+  company_name: string;
+  contact_name: string | null;
+  plan_type: string | null;
+  monthly_rate: number;
+  coin_balance: number;
+  is_resident: boolean;
+}
+
+export interface MeetingRoomUnitMini {
+  id: number;
+  name: string;
+  floor_id: number;
+}
+
+export interface MeetingRoom {
+  id: number;
+  unit_id: number;
+  name: string;
+  capacity: number;
+  rate_coins_per_hour: number;
+  rate_money_per_hour: number;
+  amenities: string[] | null;
+  is_active: boolean;
+  unit: MeetingRoomUnitMini | null;
+}
+
+export interface AvailabilitySlot {
+  time: string; // "HH:MM"
+  available: boolean;
+}
+
+export type BookingPaymentType = "coins" | "money";
+
+export interface Booking {
+  id: number;
+  room_id: number;
+  tenant_id: number;
+  start_time: string; // ISO
+  end_time: string; // ISO
+  payment_type: BookingPaymentType;
+  coins_charged: number;
+  money_charged: number;
+}
