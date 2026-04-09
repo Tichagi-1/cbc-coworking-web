@@ -8,7 +8,7 @@ import { api, ROLE_COOKIE } from "@/lib/api";
 import type {
   AvailabilitySlot,
   Booking,
-  MeetingRoom,
+  Resource,
   Tenant,
   UserRole,
 } from "@/lib/types";
@@ -42,7 +42,8 @@ export default function BookingsPage() {
   const isAdmin = role === "admin" || role === "manager";
 
   // ── Data ────────────────────────────────────────────────────────────────
-  const [rooms, setRooms] = useState<MeetingRoom[]>([]);
+  // "Rooms" are now Resource rows where resource_type === 'meeting_room'.
+  const [rooms, setRooms] = useState<Resource[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
 
   const [tenant, setTenant] = useState<Tenant | null>(null);
@@ -67,7 +68,7 @@ export default function BookingsPage() {
   // ── Initial loads ───────────────────────────────────────────────────────
   useEffect(() => {
     api
-      .get<MeetingRoom[]>("/meeting-rooms")
+      .get<Resource[]>("/resources", { params: { type: "meeting_room" } })
       .then((res) => {
         setRooms(res.data);
         if (res.data.length > 0) setSelectedRoomId(res.data[0].id);
@@ -122,6 +123,7 @@ export default function BookingsPage() {
       const res = await api.get<Booking[]>("/bookings", {
         params: { tenant_id: tenant.id },
       });
+      void selectedRoomId; // referenced below for cancel-refresh dependency
       // Keep only upcoming
       const now = dayjs();
       const upcoming = res.data
@@ -167,10 +169,12 @@ export default function BookingsPage() {
   // ── Cost calculation ────────────────────────────────────────────────────
   const cost = useMemo(() => {
     if (!selectedRoom || selStart == null) return null;
+    const coinsRate = selectedRoom.rate_coins_per_hour ?? 0;
+    const moneyRate = selectedRoom.rate_money_per_hour ?? 0;
     const endIdx = selEnd ?? selStart;
     const slotsCount = endIdx - selStart + 1;
     const hours = slotsCount * 0.5;
-    const coinsNeeded = hours * selectedRoom.rate_coins_per_hour;
+    const coinsNeeded = hours * coinsRate;
 
     if (!tenant) {
       return { hours, coinsNeeded, free: false, coinsOwed: 0, moneyOwed: 0 };
@@ -181,18 +185,13 @@ export default function BookingsPage() {
         return { hours, coinsNeeded, free: true, coinsOwed: 0, moneyOwed: 0 };
       }
       const coinsOwed = coinsNeeded - tenant.coin_balance;
-      const ratio =
-        selectedRoom.rate_coins_per_hour > 0
-          ? selectedRoom.rate_money_per_hour /
-            selectedRoom.rate_coins_per_hour
-          : 0;
+      const ratio = coinsRate > 0 ? moneyRate / coinsRate : 0;
       const moneyOwed = Math.round(coinsOwed * ratio * 100) / 100;
       return { hours, coinsNeeded, free: false, coinsOwed, moneyOwed };
     }
 
     // Non-resident: pure cash
-    const moneyOwed =
-      Math.round(hours * selectedRoom.rate_money_per_hour * 100) / 100;
+    const moneyOwed = Math.round(hours * moneyRate * 100) / 100;
     return { hours, coinsNeeded, free: false, coinsOwed: 0, moneyOwed };
   }, [selectedRoom, selStart, selEnd, tenant]);
 
@@ -206,7 +205,7 @@ export default function BookingsPage() {
       const start_time = buildIso(date, selStart);
       const end_time = buildIso(date, endIdx + 1); // +1 because slot is half-open at the end
       const res = await api.post<Booking>("/bookings", {
-        room_id: selectedRoom.id,
+        resource_id: selectedRoom.id,
         tenant_id: tenant.id,
         start_time,
         end_time,
@@ -304,7 +303,7 @@ export default function BookingsPage() {
                 </div>
               </div>
               <div className="text-sm text-gray-600 mt-1">
-                💰 {r.rate_coins_per_hour}/hr · ${r.rate_money_per_hour}/hr
+                💰 {r.rate_coins_per_hour ?? 0}/hr · ${r.rate_money_per_hour ?? 0}/hr
               </div>
               {r.amenities && r.amenities.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
@@ -481,7 +480,7 @@ export default function BookingsPage() {
           ) : (
             <ul className="divide-y divide-gray-100">
               {myBookings.map((b) => {
-                const room = rooms.find((r) => r.id === b.room_id);
+                const room = rooms.find((r) => r.id === b.resource_id);
                 return (
                   <li
                     key={b.id}
@@ -489,7 +488,7 @@ export default function BookingsPage() {
                   >
                     <div>
                       <div className="font-medium text-gray-900">
-                        {room?.name ?? `Room #${b.room_id}`}
+                        {room?.name ?? `Room #${b.resource_id ?? "?"}`}
                       </div>
                       <div className="text-xs text-gray-500">
                         {dayjs(b.start_time).format("MMM D, HH:mm")} –{" "}

@@ -4,7 +4,7 @@
 // fabric@5 has no upstream d.ts; localize `any` to this file.
 
 import { useEffect, useRef } from "react";
-import type { Point, Zone, UnitStatus, UnitType } from "@/lib/types";
+import type { Point, Zone, UnitStatus, ResourceType } from "@/lib/types";
 
 type Mode = "view" | "edit" | "history";
 
@@ -34,21 +34,23 @@ const STATUS_FILL: Record<UnitStatus, string> = {
 };
 const STATUS_FILL_OPACITY = 0.45;
 
-// Border color comes from the unit type (what kind of space it is).
-const TYPE_BORDER: Record<UnitType, string> = {
+// Border color comes from the resource type (what kind of space it is).
+const TYPE_BORDER: Record<ResourceType, string> = {
   office: "#003DA5", // CBC Blue
   meeting_room: "#7C3AED", // purple
   hot_desk: "#0891B2", // cyan
   open_space: "#059669", // emerald
+  amenity: "#0EA5E9", // sky
 };
 const TYPE_BORDER_WIDTH = 2.5;
 
 // One-letter indicator drawn in the top-left corner of each polygon
-const TYPE_LETTER: Record<UnitType, string> = {
+const TYPE_LETTER: Record<ResourceType, string> = {
   office: "O",
   meeting_room: "M",
   hot_desk: "H",
   open_space: "S",
+  amenity: "A",
 };
 
 const UNMAPPED_FILL = "#9CA3AF";
@@ -201,11 +203,11 @@ export default function FloorCanvas({
           ? STATUS_FILL_OPACITY
           : UNMAPPED_FILL_OPACITY;
 
-        // ── Border: type (or unknown fallback) ────────────────────────────
-        const knownType = z.zone_type as UnitType;
-        const hasKnownType = knownType in TYPE_BORDER;
+        // ── Border: resource type (or unknown fallback) ───────────────────
+        const knownType = z.resource_type as ResourceType | undefined;
+        const hasKnownType = !!knownType && knownType in TYPE_BORDER;
         const borderColor = hasKnownType
-          ? TYPE_BORDER[knownType]
+          ? TYPE_BORDER[knownType as ResourceType]
           : UNKNOWN_TYPE_BORDER;
         const borderWidth = hasKnownType
           ? TYPE_BORDER_WIDTH
@@ -233,7 +235,7 @@ export default function FloorCanvas({
         if (hasKnownType && area > INDICATOR_AREA_THRESHOLD) {
           const minX = Math.min(...z.points.map((p) => p.x));
           const minY = Math.min(...z.points.map((p) => p.y));
-          const indicator = new fabric.Text(TYPE_LETTER[knownType], {
+          const indicator = new fabric.Text(TYPE_LETTER[knownType as ResourceType], {
             left: minX + 4,
             top: minY + 2,
             originX: "left",

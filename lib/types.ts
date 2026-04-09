@@ -4,7 +4,17 @@ export type UserRole = "admin" | "manager" | "tenant" | "owner";
 
 export type UnitStatus = "vacant" | "occupied" | "reserved";
 
+// Kept for legacy compatibility — current code should use ResourceType.
 export type UnitType = "office" | "meeting_room" | "hot_desk" | "open_space";
+
+export type ResourceType =
+  | "office"
+  | "meeting_room"
+  | "hot_desk"
+  | "open_space"
+  | "amenity";
+
+export type RatePeriod = "month" | "day" | "biweekly" | "hour";
 
 export interface Building {
   id: number;
@@ -28,32 +38,46 @@ export interface Point {
   y: number;
 }
 
+export interface Resource {
+  id: number;
+  building_id: number;
+  floor_id: number | null;
+  name: string;
+  resource_type: ResourceType;
+  status: UnitStatus;
+  description: string | null;
+  photos: string[] | null;
+  tenant_name: string | null;
+
+  // office / hot_desk / open_space
+  area_m2: number | null;
+  seats: number | null;
+  monthly_rate: number | null;
+  rate_period: RatePeriod | null;
+
+  // meeting_room
+  capacity: number | null;
+  rate_coins_per_hour: number | null;
+  rate_money_per_hour: number | null;
+  amenities: string[] | null;
+
+  // amenity
+  rate_per_hour: number | null;
+  is_standalone_bookable: boolean;
+
+  zoho_contract_id: string | null;
+  created_at?: string | null;
+}
+
 export interface Zone {
   id: number;
   floor_id: number;
-  unit_id: number | null;
+  resource_id: number | null;
   points: Point[];
   label: string | null;
-  zone_type: UnitType;
-  /** Joined client-side from the linked unit */
-  status?: UnitStatus;
-}
-
-export type RatePeriod = "month" | "day" | "biweekly" | "hour";
-
-export interface Unit {
-  id: number;
-  floor_id: number;
-  name: string;
-  unit_type: UnitType;
-  status: UnitStatus;
-  area_m2: number;
-  seats: number;
-  monthly_rate: number;
-  rate_period: RatePeriod | null;
-  tenant_name: string | null;
-  description: string | null;
-  photos: string[] | null;
+  /** Joined server-side from the linked resource for canvas rendering. */
+  resource_type?: ResourceType | null;
+  status?: UnitStatus | null;
 }
 
 export interface AuthResponse {
@@ -74,24 +98,6 @@ export interface Tenant {
   is_resident: boolean;
 }
 
-export interface MeetingRoomUnitMini {
-  id: number;
-  name: string;
-  floor_id: number;
-}
-
-export interface MeetingRoom {
-  id: number;
-  unit_id: number;
-  name: string;
-  capacity: number;
-  rate_coins_per_hour: number;
-  rate_money_per_hour: number;
-  amenities: string[] | null;
-  is_active: boolean;
-  unit: MeetingRoomUnitMini | null;
-}
-
 export interface AvailabilitySlot {
   time: string; // "HH:MM"
   available: boolean;
@@ -101,7 +107,7 @@ export type BookingPaymentType = "coins" | "money";
 
 export interface Booking {
   id: number;
-  room_id: number;
+  resource_id: number | null;
   tenant_id: number;
   start_time: string; // ISO
   end_time: string; // ISO

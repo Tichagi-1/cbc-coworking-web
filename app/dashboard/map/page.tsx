@@ -17,17 +17,15 @@ import type {
   Building,
   Floor,
   Point,
-  Unit,
-  UnitType,
+  Resource,
   UserRole,
   Zone,
 } from "@/lib/types";
-import ZonePanel, { UnitPatchPayload } from "@/components/ZonePanel";
+import ZonePanel, { ResourcePatchPayload } from "@/components/ZonePanel";
 import AddFloorModal from "@/components/AddFloorModal";
-import ZoneNameModal, { ZoneFormData } from "@/components/ZoneNameModal";
+import ZoneNameModal from "@/components/ZoneNameModal";
 import ConfirmModal from "@/components/ConfirmModal";
 
-// FloorCanvas uses fabric (browser-only) — load with SSR disabled.
 const FloorCanvas = dynamic(() => import("@/components/FloorCanvas"), {
   ssr: false,
   loading: () => (
@@ -37,77 +35,63 @@ const FloorCanvas = dynamic(() => import("@/components/FloorCanvas"), {
 
 type Mode = "view" | "edit" | "history";
 
-const BUILDING_ID = 1; // Modera Coworking — single-building MVP
+const BUILDING_ID = 1;
 
 export default function MapPage() {
-  // ── Auth/role ───────────────────────────────────────────────────────────
   const [role, setRole] = useState<UserRole | undefined>(undefined);
   useEffect(() => {
     setRole(Cookies.get(ROLE_COOKIE) as UserRole | undefined);
   }, []);
   const isAdmin = role === "admin" || role === "manager";
 
-  // ── Building/floor state ────────────────────────────────────────────────
   const [floors, setFloors] = useState<Floor[]>([]);
   const [floorId, setFloorId] = useState<number | null>(null);
   const [building, setBuilding] = useState<Building | null>(null);
 
-  // ── Zones / units ───────────────────────────────────────────────────────
   const [savedZones, setSavedZones] = useState<Zone[]>([]);
   const [pendingZones, setPendingZones] = useState<Zone[]>([]);
-  const [units, setUnits] = useState<Unit[]>([]);
+  const [resources, setResources] = useState<Resource[]>([]);
 
-  // ── Panel + modals ──────────────────────────────────────────────────────
-  const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
+  const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelLoading, setPanelLoading] = useState(false);
   const [panelSaving, setPanelSaving] = useState(false);
+
   const [addFloorOpen, setAddFloorOpen] = useState(false);
   const [addFloorSubmitting, setAddFloorSubmitting] = useState(false);
+
   const [zoneModalOpen, setZoneModalOpen] = useState(false);
   const [zoneModalSubmitting, setZoneModalSubmitting] = useState(false);
   const pendingPolygonPointsRef = useRef<Point[] | null>(null);
 
-  // Floor edit/delete
   const [renamingFloorId, setRenamingFloorId] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renameSubmitting, setRenameSubmitting] = useState(false);
   const [deleteFloorOpen, setDeleteFloorOpen] = useState(false);
   const [deleteFloorSubmitting, setDeleteFloorSubmitting] = useState(false);
 
-  // Per-unit cache for click drill-down (avoids duplicate /units/{id} fetches)
-  const unitCacheRef = useRef<Map<number, Unit>>(new Map());
+  const resourceCacheRef = useRef<Map<number, Resource>>(new Map());
 
-  // ── Edit state ──────────────────────────────────────────────────────────
   const [mode, setMode] = useState<Mode>("view");
   const [drawingEnabled, setDrawingEnabled] = useState(false);
   const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null);
-  const [defaultZoneType, setDefaultZoneType] = useState<UnitType>("office");
   const [savingZones, setSavingZones] = useState(false);
 
-  // ── Misc ────────────────────────────────────────────────────────────────
   const [historyDate, setHistoryDate] = useState(dayjs().format("YYYY-MM-DD"));
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  // ── Load building (id=1, MVP) ──────────────────────────────────────────
+  // ── Building ───────────────────────────────────────────────────────────
   useEffect(() => {
     api
-      .get<Building>(`/buildings/${BUILDING_ID}`)
-      .then((res) => setBuilding(res.data))
-      .catch(() => {
-        // /buildings/{id} doesn't exist as a single-resource endpoint;
-        // fall back to listing.
-        api
-          .get<Building[]>("/buildings/")
-          .then((res) =>
-            setBuilding(res.data.find((b) => b.id === BUILDING_ID) ?? null)
-          )
-          .catch((e) => setError(e?.message || "Failed to load building"));
-      });
+      .get<Building[]>("/buildings/")
+      .then((res) =>
+        setBuilding(res.data.find((b) => b.id === BUILDING_ID) ?? null)
+      )
+      .catch((e) => setError(e?.message || "Failed to load building"));
   }, []);
 
-  // ── Load floors ─────────────────────────────────────────────────────────
+  // ── Floors ─────────────────────────────────────────────────────────────
   const loadFloors = useCallback(
     async (selectFloorId?: number) => {
       try {
@@ -132,42 +116,24 @@ export default function MapPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Load floor data: zones (live) or snapshot (history) ─────────────────
+  // ── Floor data: zones (live) or snapshot (history) ─────────────────────
   const loadFloorData = useCallback(
     async (fid: number, viewMode: Mode, date: string) => {
       try {
-        // Always refresh units for the floor — drives stats, panel cache,
-        // and the live status join. Warms the per-unit cache too.
-        const uRes = await api.get<Unit[]>(`/units/`, {
-          params: { floor_id: fid },
+        const rRes = await api.get<Resource[]>("/resources", {
+          params: { building_id: BUILDING_ID, floor_id: fid },
         });
-        setUnits(uRes.data);
-        uRes.data.forEach((u) => unitCacheRef.current.set(u.id, u));
+        setResources(rRes.data);
+        rRes.data.forEach((r) => resourceCacheRef.current.set(r.id, r));
 
-        let enriched: Zone[];
-        if (viewMode === "history") {
-          const sRes = await api.get<Zone[]>(
-            `/buildings/${BUILDING_ID}/floors/${fid}/snapshot`,
-            { params: { date } }
-          );
-          // The snapshot endpoint already returns status synthesized from
-          // lease history at `date`.
-          enriched = sRes.data;
-        } else {
-          const zRes = await api.get<Zone[]>(
-            `/buildings/${BUILDING_ID}/floors/${fid}/zones`
-          );
-          const unitById = new Map(uRes.data.map((u) => [u.id, u]));
-          enriched = zRes.data.map((z) => {
-            const unit = z.unit_id ? unitById.get(z.unit_id) : undefined;
-            return {
-              ...z,
-              status: unit?.status,
-              label: z.label || unit?.name || null,
-            };
-          });
-        }
-        setSavedZones(enriched);
+        const path =
+          viewMode === "history"
+            ? `/buildings/${BUILDING_ID}/floors/${fid}/snapshot`
+            : `/buildings/${BUILDING_ID}/floors/${fid}/zones`;
+        const params = viewMode === "history" ? { date } : undefined;
+
+        const zRes = await api.get<Zone[]>(path, { params });
+        setSavedZones(zRes.data);
         setPendingZones([]);
       } catch (e) {
         setError((e as Error)?.message || "Failed to load floor data");
@@ -180,19 +146,19 @@ export default function MapPage() {
     if (floorId == null) {
       setSavedZones([]);
       setPendingZones([]);
-      setUnits([]);
+      setResources([]);
       return;
     }
     loadFloorData(floorId, mode, historyDate);
   }, [floorId, mode, historyDate, loadFloorData]);
 
-  // ── Per-unit cache helper (used by zone click) ──────────────────────────
-  const getUnit = useCallback(async (id: number): Promise<Unit | null> => {
-    const cached = unitCacheRef.current.get(id);
+  // ── Per-resource cache helper ───────────────────────────────────────────
+  const getResource = useCallback(async (id: number): Promise<Resource | null> => {
+    const cached = resourceCacheRef.current.get(id);
     if (cached) return cached;
     try {
-      const res = await api.get<Unit>(`/units/${id}`);
-      unitCacheRef.current.set(id, res.data);
+      const res = await api.get<Resource>(`/resources/${id}`);
+      resourceCacheRef.current.set(id, res.data);
       return res.data;
     } catch {
       return null;
@@ -210,24 +176,21 @@ export default function MapPage() {
     [savedZones, pendingZones]
   );
 
-  // Stats for the legend row
   const occupiedCount = useMemo(
-    () => units.filter((u) => u.status === "occupied").length,
-    [units]
+    () => resources.filter((r) => r.status === "occupied").length,
+    [resources]
   );
-  const totalUnits = units.length;
+  const totalResources = resources.length;
 
   // ── Handlers: zone click / select ───────────────────────────────────────
   async function handleZoneClick(zone: Zone) {
-    if (zone.unit_id == null) return;
-    // Show panel immediately with whatever's already in cache, then
-    // refetch in background to make sure we display the latest unit data.
-    const cached = unitCacheRef.current.get(zone.unit_id) ?? null;
-    setSelectedUnit(cached);
+    if (zone.resource_id == null) return;
+    const cached = resourceCacheRef.current.get(zone.resource_id) ?? null;
+    setSelectedResource(cached);
     setPanelOpen(true);
     setPanelLoading(true);
-    const fresh = await getUnit(zone.unit_id);
-    setSelectedUnit(fresh);
+    const fresh = await getResource(zone.resource_id);
+    setSelectedResource(fresh);
     setPanelLoading(false);
   }
 
@@ -235,7 +198,7 @@ export default function MapPage() {
     setSelectedZoneId(zone.id);
   }
 
-  // ── Handlers: add floor ─────────────────────────────────────────────────
+  // ── Add / rename / delete floor ─────────────────────────────────────────
   async function handleAddFloor(data: { number: number; name: string | null }) {
     setAddFloorSubmitting(true);
     try {
@@ -252,7 +215,6 @@ export default function MapPage() {
     }
   }
 
-  // ── Handlers: rename floor ──────────────────────────────────────────────
   function startRenameFloor() {
     if (!currentFloor) return;
     setRenameValue(currentFloor.name ?? "");
@@ -281,14 +243,12 @@ export default function MapPage() {
     }
   }
 
-  // ── Handlers: delete floor ──────────────────────────────────────────────
   async function handleDeleteFloor() {
     if (floorId == null) return;
     setDeleteFloorSubmitting(true);
     try {
       await api.delete(`/buildings/${BUILDING_ID}/floors/${floorId}`);
       setDeleteFloorOpen(false);
-      // Reload list and let it auto-select the first remaining floor
       const fresh = await api.get<Floor[]>(
         `/buildings/${BUILDING_ID}/floors`
       );
@@ -301,33 +261,7 @@ export default function MapPage() {
     }
   }
 
-  // ── Handlers: PATCH unit from panel ─────────────────────────────────────
-  async function handleUnitSave(
-    id: number,
-    patch: UnitPatchPayload
-  ): Promise<Unit | null> {
-    setPanelSaving(true);
-    try {
-      const res = await api.patch<Unit>(`/units/${id}`, patch);
-      const fresh = res.data;
-      // Update cache, units list, and currently displayed unit
-      unitCacheRef.current.set(fresh.id, fresh);
-      setUnits((prev) => prev.map((u) => (u.id === fresh.id ? fresh : u)));
-      setSelectedUnit(fresh);
-      // Refresh canvas zones so border (status) updates
-      if (floorId != null) {
-        await loadFloorData(floorId, mode, historyDate);
-      }
-      return fresh;
-    } catch (e) {
-      setError((e as Error)?.message || "Failed to save unit");
-      return null;
-    } finally {
-      setPanelSaving(false);
-    }
-  }
-
-  // ── Handlers: upload floor plan ─────────────────────────────────────────
+  // ── Upload ──────────────────────────────────────────────────────────────
   async function handleFileUpload(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || floorId == null) return;
@@ -340,7 +274,6 @@ export default function MapPage() {
         form,
         { headers: { "Content-Type": "multipart/form-data" } }
       );
-      // Refresh floors list to pick up new floor_plan_url
       await loadFloors(floorId);
     } catch (err) {
       setError((err as Error)?.message || "Upload failed");
@@ -350,46 +283,41 @@ export default function MapPage() {
     }
   }
 
-  // ── Handlers: draw → name → create unit + pending zone ─────────────────
+  // ── Draw → link to resource ────────────────────────────────────────────
   function handleZoneCreated(points: Point[]) {
     pendingPolygonPointsRef.current = points;
     setZoneModalOpen(true);
   }
 
-  async function handleZoneFormSubmit(data: ZoneFormData) {
+  async function handleZoneLinked(resourceId: number) {
     if (!pendingPolygonPointsRef.current || floorId == null) return;
     setZoneModalSubmitting(true);
     try {
-      // Create the unit first
-      const unitRes = await api.post<Unit>("/units/", {
-        floor_id: floorId,
-        name: data.name,
-        unit_type: data.unit_type,
-        area_m2: data.area_m2,
-        seats: data.seats,
-        monthly_rate: data.monthly_rate,
-        rate_period: data.rate_period,
-      });
-      const newUnit = unitRes.data;
-      setUnits((prev) => [...prev, newUnit]);
+      // Make sure we have the resource details (cache + state)
+      const fresh = await getResource(resourceId);
+      if (fresh) {
+        setResources((prev) => {
+          const without = prev.filter((r) => r.id !== fresh.id);
+          return [...without, fresh];
+        });
+      }
 
-      // Stage a pending zone (negative id so it doesn't collide with saved)
       const tempId = -(Date.now() % 1_000_000);
       const newZone: Zone = {
         id: tempId,
         floor_id: floorId,
-        unit_id: newUnit.id,
+        resource_id: resourceId,
         points: pendingPolygonPointsRef.current,
-        label: newUnit.name,
-        zone_type: newUnit.unit_type,
-        status: newUnit.status,
+        label: fresh?.name ?? null,
+        resource_type: fresh?.resource_type ?? null,
+        status: fresh?.status ?? null,
       };
       setPendingZones((prev) => [...prev, newZone]);
 
       pendingPolygonPointsRef.current = null;
       setZoneModalOpen(false);
     } catch (e) {
-      setError((e as Error)?.message || "Failed to create zone");
+      setError((e as Error)?.message || "Failed to link zone");
     } finally {
       setZoneModalSubmitting(false);
     }
@@ -400,16 +328,15 @@ export default function MapPage() {
     setZoneModalOpen(false);
   }
 
-  // ── Handlers: save / clear / mode ───────────────────────────────────────
+  // ── Save / clear / mode ────────────────────────────────────────────────
   async function handleSaveZones() {
     if (floorId == null) return;
     setSavingZones(true);
     try {
       const payload = allZones.map((z) => ({
-        unit_id: z.unit_id,
+        resource_id: z.resource_id,
         points: z.points,
         label: z.label,
-        zone_type: z.zone_type,
       }));
       await api.put(
         `/buildings/${BUILDING_ID}/floors/${floorId}/zones`,
@@ -438,6 +365,38 @@ export default function MapPage() {
       setSelectedZoneId(null);
     }
   }
+
+  // ── PATCH resource from panel ──────────────────────────────────────────
+  async function handleResourceSave(
+    id: number,
+    patch: ResourcePatchPayload
+  ): Promise<Resource | null> {
+    setPanelSaving(true);
+    try {
+      const res = await api.patch<Resource>(`/resources/${id}`, patch);
+      const fresh = res.data;
+      resourceCacheRef.current.set(fresh.id, fresh);
+      setResources((prev) => prev.map((r) => (r.id === fresh.id ? fresh : r)));
+      setSelectedResource(fresh);
+      if (floorId != null) {
+        await loadFloorData(floorId, mode, historyDate);
+      }
+      return fresh;
+    } catch (e) {
+      setError((e as Error)?.message || "Failed to save resource");
+      return null;
+    } finally {
+      setPanelSaving(false);
+    }
+  }
+
+  const linkedResourceIds = useMemo(
+    () =>
+      allZones
+        .map((z) => z.resource_id)
+        .filter((id): id is number => id != null),
+    [allZones]
+  );
 
   // ── Render ──────────────────────────────────────────────────────────────
   return (
@@ -499,7 +458,6 @@ export default function MapPage() {
                     title="Rename floor"
                     className="p-2 text-gray-500 hover:text-cbc-blue rounded-md hover:bg-gray-100"
                   >
-                    {/* pencil icon (inline svg) */}
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="16"
@@ -521,7 +479,6 @@ export default function MapPage() {
                     title="Delete floor"
                     className="p-2 text-gray-500 hover:text-red-600 rounded-md hover:bg-gray-100"
                   >
-                    {/* trash icon */}
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="16"
@@ -667,28 +624,11 @@ export default function MapPage() {
           >
             Clear Selected
           </button>
-
-          <div className="ml-2 flex items-center gap-2">
-            <span className="text-xs uppercase tracking-wide text-gray-500">
-              Type
-            </span>
-            <select
-              value={defaultZoneType}
-              onChange={(e) => setDefaultZoneType(e.target.value as UnitType)}
-              className="border border-gray-300 rounded-md px-2 py-1.5 text-sm bg-white"
-            >
-              <option value="office">Office</option>
-              <option value="meeting_room">Meeting Room</option>
-              <option value="hot_desk">Hot Desk</option>
-              <option value="open_space">Open Space</option>
-            </select>
-          </div>
         </div>
       )}
 
       {/* STATUS LEGEND + STATS */}
       <div className="mt-4 space-y-2 text-xs text-gray-600">
-        {/* Row 1: status fills */}
         <div className="flex flex-wrap items-center gap-5">
           <span className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold w-14">
             Status
@@ -723,10 +663,10 @@ export default function MapPage() {
           </span>
 
           <span className="font-medium text-gray-800 ml-2">
-            {occupiedCount} of {totalUnits} units occupied
-            {totalUnits > 0 && (
+            {occupiedCount} of {totalResources} resources occupied
+            {totalResources > 0 && (
               <span className="text-gray-500 ml-1">
-                ({Math.round((occupiedCount / totalUnits) * 100)}%)
+                ({Math.round((occupiedCount / totalResources) * 100)}%)
               </span>
             )}
           </span>
@@ -738,7 +678,6 @@ export default function MapPage() {
           )}
         </div>
 
-        {/* Row 2: type borders */}
         <div className="flex flex-wrap items-center gap-5">
           <span className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold w-14">
             Type
@@ -771,6 +710,13 @@ export default function MapPage() {
             />
             Open Space
           </span>
+          <span className="flex items-center gap-1.5">
+            <span
+              className="w-3 h-3 rounded-sm bg-white"
+              style={{ border: "2px solid #0EA5E9" }}
+            />
+            Amenity
+          </span>
         </div>
       </div>
 
@@ -782,22 +728,26 @@ export default function MapPage() {
         onSubmit={handleAddFloor}
       />
 
-      <ZoneNameModal
-        open={zoneModalOpen}
-        defaultType={defaultZoneType}
-        submitting={zoneModalSubmitting}
-        onClose={handleZoneFormCancel}
-        onSubmit={handleZoneFormSubmit}
-      />
+      {floorId != null && (
+        <ZoneNameModal
+          open={zoneModalOpen}
+          buildingId={BUILDING_ID}
+          floorId={floorId}
+          excludeResourceIds={linkedResourceIds}
+          submitting={zoneModalSubmitting}
+          onClose={handleZoneFormCancel}
+          onLinked={handleZoneLinked}
+        />
+      )}
 
       <ZonePanel
-        unit={selectedUnit}
+        resource={selectedResource}
         open={panelOpen}
         role={role}
         loading={panelLoading}
         saving={panelSaving}
         onClose={() => setPanelOpen(false)}
-        onSave={handleUnitSave}
+        onSave={handleResourceSave}
       />
 
       <ConfirmModal
@@ -807,7 +757,7 @@ export default function MapPage() {
           currentFloor
             ? `Permanently delete "${
                 currentFloor.name ?? `Floor ${currentFloor.number}`
-              }"? This also removes all of its units, zones, leases, meeting rooms, and bookings. This cannot be undone.`
+              }"? This also removes all of its resources, zones, and bookings. This cannot be undone.`
             : "Delete this floor?"
         }
         confirmLabel="Delete"
@@ -819,8 +769,6 @@ export default function MapPage() {
     </div>
   );
 }
-
-// ── Inline upload dropzone ────────────────────────────────────────────────
 
 function UploadDropzone({
   uploading,
