@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import { api } from "@/lib/api";
-import type { Tenant } from "@/lib/types";
+import type { Plan, Tenant } from "@/lib/types";
 
 interface CoinSummary {
   tenant_id: number;
@@ -34,6 +34,8 @@ export default function TenantsPage() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [coinModalTenant, setCoinModalTenant] = useState<Tenant | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editTenant, setEditTenant] = useState<Tenant | null>(null);
   const [role, setRole] = useState("");
 
   useEffect(() => {
@@ -54,7 +56,17 @@ export default function TenantsPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold text-gray-900 mb-4">Tenants</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h1 className="text-2xl font-semibold text-gray-900">Tenants</h1>
+        {isAdmin && (
+          <button
+            onClick={() => setShowCreate(true)}
+            style={{ padding: "8px 16px", background: "#003DA5", color: "white", border: "none", borderRadius: 6, fontSize: 14, cursor: "pointer", fontWeight: 500 }}
+          >
+            + New Tenant
+          </button>
+        )}
+      </div>
 
       {error && (
         <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3 mb-4 flex justify-between">
@@ -115,12 +127,20 @@ export default function TenantsPage() {
                   </td>
                   {isAdmin && (
                     <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => setCoinModalTenant(t)}
-                        style={{ padding: "4px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500 }}
-                      >
-                        Coins
-                      </button>
+                      <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
+                        <button
+                          onClick={() => setEditTenant(t)}
+                          style={{ padding: "4px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500 }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setCoinModalTenant(t)}
+                          style={{ padding: "4px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500 }}
+                        >
+                          Coins
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -137,11 +157,37 @@ export default function TenantsPage() {
           onClose={() => setCoinModalTenant(null)}
           onUpdated={async () => {
             await loadTenants();
-            // Refresh the modal's tenant data
             const fresh = await api.get<Tenant[]>("/tenants/");
             const updated = fresh.data.find((t) => t.id === coinModalTenant.id);
             if (updated) setCoinModalTenant(updated);
             setToast("Coins updated");
+            setTimeout(() => setToast(null), 3000);
+          }}
+        />
+      )}
+
+      {/* Create tenant modal */}
+      {showCreate && (
+        <CreateTenantModal
+          onClose={() => setShowCreate(false)}
+          onCreated={async () => {
+            setShowCreate(false);
+            await loadTenants();
+            setToast("Tenant created!");
+            setTimeout(() => setToast(null), 3000);
+          }}
+        />
+      )}
+
+      {/* Edit tenant modal */}
+      {editTenant && (
+        <EditTenantModal
+          tenant={editTenant}
+          onClose={() => setEditTenant(null)}
+          onSaved={async () => {
+            setEditTenant(null);
+            await loadTenants();
+            setToast("Tenant updated");
             setTimeout(() => setToast(null), 3000);
           }}
         />
@@ -347,6 +393,253 @@ function CoinModal({
         <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>
             Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Create tenant modal ───────────────────────────────────────────────────
+
+function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => Promise<void> }) {
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [companyName, setCompanyName] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [isResident, setIsResident] = useState(true);
+  const [planId, setPlanId] = useState<number | null>(null);
+  const [monthlyRate, setMonthlyRate] = useState(0);
+  const [seatCount, setSeatCount] = useState(1);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [userName, setUserName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.get<Plan[]>("/plans", { params: { building_id: 1 } })
+      .then((r) => setPlans(r.data))
+      .catch(() => {});
+  }, []);
+
+  const selectedPlan = plans.find((p) => p.id === planId) ?? null;
+
+  useEffect(() => {
+    if (!selectedPlan) return;
+    if (selectedPlan.billing_mode === "per_seat") {
+      setMonthlyRate(selectedPlan.base_rate_uzs * seatCount);
+    } else {
+      setMonthlyRate(selectedPlan.base_rate_uzs);
+    }
+  }, [selectedPlan, seatCount]);
+
+  const coinPreview = Math.round(monthlyRate * ((selectedPlan?.coin_pct ?? 25) / 100));
+
+  async function handleSubmit() {
+    if (!companyName.trim() || !email.trim() || !password || !userName.trim()) {
+      setError("Company name, email, password, and name are required");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      // Step 1: Create user account
+      const userRes = await api.post<{ access_token: string; role: string; name: string }>("/auth/register", {
+        email: email.trim(),
+        password,
+        name: userName.trim(),
+        role: "tenant",
+      });
+      // Extract user_id from token payload (sub claim)
+      const token = userRes.data.access_token;
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const userId = parseInt(payload.sub);
+
+      // Step 2: Create tenant
+      await api.post("/tenants/", {
+        user_id: userId,
+        company_name: companyName.trim(),
+        contact_name: contactName.trim() || null,
+        contact_phone: contactPhone.trim() || null,
+        plan_type: selectedPlan?.name || null,
+        monthly_rate: monthlyRate,
+        is_resident: isResident,
+      });
+
+      await onCreated();
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(detail || "Failed to create tenant");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputStyle: React.CSSProperties = {
+    display: "block", width: "100%", marginTop: 4, padding: "8px 10px",
+    border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
+  };
+  const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)" }}
+      onMouseDown={onClose}>
+      <div style={{ background: "white", borderRadius: 12, padding: 28, width: 500, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
+        onMouseDown={(e) => e.stopPropagation()}>
+        <h2 style={{ margin: "0 0 20px", fontSize: 18, fontWeight: 600 }}>New Tenant</h2>
+
+        {error && <div style={{ background: "#fee2e2", color: "#dc2626", padding: "8px 12px", borderRadius: 6, marginBottom: 12, fontSize: 13 }}>{error}</div>}
+
+        <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 13, color: "#0369a1" }}>
+          User Account (login credentials)
+        </div>
+
+        <label style={labelStyle}>
+          Email (login)
+          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tenant@company.com" style={inputStyle} />
+        </label>
+        <label style={labelStyle}>
+          Name
+          <input type="text" required value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Full name" style={inputStyle} />
+        </label>
+        <label style={labelStyle}>
+          Password (min 8 chars)
+          <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" style={inputStyle} />
+        </label>
+
+        <div style={{ borderTop: "1px solid #e5e7eb", marginTop: 8, paddingTop: 16, marginBottom: 8 }}>
+          <div style={{ fontSize: 13, color: "#0369a1", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8, padding: 12, marginBottom: 16 }}>
+            Company Details
+          </div>
+        </div>
+
+        <label style={labelStyle}>
+          Company Name *
+          <input type="text" required value={companyName} onChange={(e) => setCompanyName(e.target.value)} style={inputStyle} />
+        </label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <label style={labelStyle}>
+            Contact Name
+            <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} style={inputStyle} />
+          </label>
+          <label style={labelStyle}>
+            Contact Phone
+            <input type="text" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} style={inputStyle} />
+          </label>
+        </div>
+
+        <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8 }}>
+          <input type="checkbox" checked={isResident} onChange={(e) => setIsResident(e.target.checked)} />
+          Is Resident
+        </label>
+
+        <label style={labelStyle}>
+          Plan
+          <select value={planId ?? ""} onChange={(e) => setPlanId(e.target.value ? +e.target.value : null)} style={inputStyle}>
+            <option value="">-- No plan --</option>
+            {plans.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.billing_mode})</option>)}
+          </select>
+        </label>
+
+        {selectedPlan?.billing_mode === "per_seat" && (
+          <label style={labelStyle}>
+            Seats
+            <input type="number" min={1} value={seatCount} onChange={(e) => setSeatCount(+e.target.value || 1)} style={inputStyle} />
+          </label>
+        )}
+
+        <label style={labelStyle}>
+          Monthly Rate (сум)
+          <input type="number" min={0} value={monthlyRate} onChange={(e) => setMonthlyRate(+e.target.value)} style={inputStyle} />
+        </label>
+
+        <div style={{ background: "#fef3c7", padding: 10, borderRadius: 6, fontSize: 12, color: "#92400e", marginBottom: 16 }}>
+          Will receive <strong>{coinPreview.toLocaleString()}</strong> coins on first reset
+          ({selectedPlan?.coin_pct ?? 25}% of {monthlyRate.toLocaleString()} сум)
+        </div>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Cancel</button>
+          <button onClick={handleSubmit} disabled={saving} style={{ padding: "8px 16px", background: "#003DA5", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, opacity: saving ? 0.7 : 1 }}>
+            {saving ? "Creating..." : "Create Tenant"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit tenant modal ─────────────────────────────────────────────────────
+
+function EditTenantModal({ tenant, onClose, onSaved }: { tenant: Tenant; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [companyName, setCompanyName] = useState(tenant.company_name);
+  const [contactName, setContactName] = useState(tenant.contact_name || "");
+  const [planType, setPlanType] = useState(tenant.plan_type || "");
+  const [monthlyRate, setMonthlyRate] = useState(tenant.monthly_rate);
+  const [isResident, setIsResident] = useState(tenant.is_resident);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSave() {
+    setSaving(true);
+    setError("");
+    try {
+      await api.patch(`/tenants/${tenant.id}`, {
+        company_name: companyName.trim(),
+        contact_name: contactName.trim() || null,
+        plan_type: planType.trim() || null,
+        monthly_rate: monthlyRate,
+        is_resident: isResident,
+      });
+      await onSaved();
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputStyle: React.CSSProperties = {
+    display: "block", width: "100%", marginTop: 4, padding: "8px 10px",
+    border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
+  };
+  const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)" }}
+      onMouseDown={onClose}>
+      <div style={{ background: "white", borderRadius: 12, padding: 28, width: 440, maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
+        onMouseDown={(e) => e.stopPropagation()}>
+        <h2 style={{ margin: "0 0 20px", fontSize: 18, fontWeight: 600 }}>Edit Tenant</h2>
+
+        {error && <div style={{ background: "#fee2e2", color: "#dc2626", padding: "8px 12px", borderRadius: 6, marginBottom: 12, fontSize: 13 }}>{error}</div>}
+
+        <label style={labelStyle}>
+          Company Name
+          <input type="text" required value={companyName} onChange={(e) => setCompanyName(e.target.value)} style={inputStyle} />
+        </label>
+        <label style={labelStyle}>
+          Contact Name
+          <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} style={inputStyle} />
+        </label>
+        <label style={labelStyle}>
+          Plan Type
+          <input type="text" value={planType} onChange={(e) => setPlanType(e.target.value)} placeholder="e.g. Enterprise" style={inputStyle} />
+        </label>
+        <label style={labelStyle}>
+          Monthly Rate (сум)
+          <input type="number" min={0} value={monthlyRate} onChange={(e) => setMonthlyRate(+e.target.value)} style={inputStyle} />
+        </label>
+        <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8 }}>
+          <input type="checkbox" checked={isResident} onChange={(e) => setIsResident(e.target.checked)} />
+          Is Resident
+        </label>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+          <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Cancel</button>
+          <button onClick={handleSave} disabled={saving} style={{ padding: "8px 16px", background: "#003DA5", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, opacity: saving ? 0.7 : 1 }}>
+            {saving ? "Saving..." : "Save"}
           </button>
         </div>
       </div>
