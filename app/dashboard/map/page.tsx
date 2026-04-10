@@ -74,6 +74,7 @@ export default function MapPage() {
   const [deleteFloorSubmitting, setDeleteFloorSubmitting] = useState(false);
 
   const resourceCacheRef = useRef<Map<number, Resource>>(new Map());
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const [mode, setMode] = useState<Mode>("view");
   const [drawingEnabled, setDrawingEnabled] = useState(false);
@@ -325,7 +326,9 @@ export default function MapPage() {
         resource_type: fresh?.resource_type ?? null,
         status: fresh?.status ?? null,
       };
-      setPendingZones((prev) => [...prev, newZone]);
+      // Auto-save immediately: combine current zones + new zone and PUT to server
+      const allCurrent = [...savedZones, ...pendingZones, newZone];
+      await saveAllZonesToServer(allCurrent);
 
       pendingPolygonPointsRef.current = null;
       setZoneModalOpen(false);
@@ -347,20 +350,19 @@ export default function MapPage() {
     setZoneModalSubmitting(true);
     try {
       const fresh = await getResource(resourceId);
-      // Update the zone in savedZones with the new resource_id
-      setSavedZones((prev) =>
-        prev.map((z) =>
-          z.id === reassignZone.id
-            ? {
-                ...z,
-                resource_id: resourceId,
-                label: fresh?.name ?? z.label,
-                resource_type: fresh?.resource_type ?? z.resource_type,
-                status: fresh?.status ?? z.status,
-              }
-            : z
-        )
+      // Update zone and auto-save immediately
+      const updatedZones = savedZones.map((z) =>
+        z.id === reassignZone.id
+          ? {
+              ...z,
+              resource_id: resourceId,
+              label: fresh?.name ?? z.label,
+              resource_type: fresh?.resource_type ?? z.resource_type,
+              status: fresh?.status ?? z.status,
+            }
+          : z
       );
+      await saveAllZonesToServer([...updatedZones, ...pendingZones]);
       setReassignZone(null);
       setZoneModalOpen(false);
     } catch (e) {
@@ -370,35 +372,45 @@ export default function MapPage() {
     }
   }
 
-  function handleUnlinkZone() {
+  async function handleUnlinkZone() {
     if (!reassignZone) return;
-    setSavedZones((prev) =>
-      prev.map((z) =>
-        z.id === reassignZone.id
-          ? { ...z, resource_id: null, label: null, resource_type: null, status: null }
-          : z
-      )
+    const updatedZones = savedZones.map((z) =>
+      z.id === reassignZone.id
+        ? { ...z, resource_id: null, label: null, resource_type: null, status: null }
+        : z
     );
+    try {
+      await saveAllZonesToServer([...updatedZones, ...pendingZones]);
+    } catch (e) {
+      setError((e as Error)?.message || "Failed to unlink zone");
+    }
     setReassignZone(null);
     setZoneModalOpen(false);
   }
 
-  // ── Save / clear / mode ────────────────────────────────────────────────
+  // ── Save helpers ────────────────────────────────────────────────────────
+  async function saveAllZonesToServer(zones: Zone[]) {
+    if (floorId == null) return;
+    const payload = zones.map((z) => ({
+      resource_id: z.resource_id,
+      points: z.points,
+      label: z.label,
+    }));
+    await api.put(
+      `/buildings/${BUILDING_ID}/floors/${floorId}/zones`,
+      payload
+    );
+    await loadFloorData(floorId, mode, historyDate);
+    setHasUnsavedChanges(false);
+    setPendingZones([]);
+    setSelectedZoneId(null);
+  }
+
   async function handleSaveZones() {
     if (floorId == null) return;
     setSavingZones(true);
     try {
-      const payload = allZones.map((z) => ({
-        resource_id: z.resource_id,
-        points: z.points,
-        label: z.label,
-      }));
-      await api.put(
-        `/buildings/${BUILDING_ID}/floors/${floorId}/zones`,
-        payload
-      );
-      await loadFloorData(floorId, mode, historyDate);
-      setSelectedZoneId(null);
+      await saveAllZonesToServer(allZones);
     } catch (e) {
       setError((e as Error)?.message || "Failed to save zones");
     } finally {
@@ -411,9 +423,17 @@ export default function MapPage() {
     setPendingZones((prev) => prev.filter((z) => z.id !== selectedZoneId));
     setSavedZones((prev) => prev.filter((z) => z.id !== selectedZoneId));
     setSelectedZoneId(null);
+    setHasUnsavedChanges(true);
   }
 
   function handleModeChange(next: Mode) {
+    if (hasUnsavedChanges && next !== mode) {
+      const ok = window.confirm(
+        "You have unsaved zone changes. Discard and switch mode?"
+      );
+      if (!ok) return;
+      setHasUnsavedChanges(false);
+    }
     setMode(next);
     if (next !== "edit") {
       setDrawingEnabled(false);

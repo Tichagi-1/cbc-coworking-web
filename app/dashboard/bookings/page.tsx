@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useCalendarApp, ScheduleXCalendar } from "@schedule-x/react";
-import { createViewDay, createViewWeek } from "@schedule-x/calendar";
-import { createDragAndDropPlugin } from "@schedule-x/drag-and-drop";
-import { createResizePlugin } from "@schedule-x/resize";
-import "@schedule-x/theme-default/dist/index.css";
 import { api } from "@/lib/api";
 import type { Resource, Booking } from "@/lib/types";
+
+const HOUR_HEIGHT = 60;
+const DAY_START = 8;
+const DAY_END = 20;
+const TOTAL_HOURS = DAY_END - DAY_START;
 
 const minToTime = (min: number) => {
   const h = Math.floor(min / 60)
@@ -24,6 +24,18 @@ const timeToMin = (t: string) => {
 
 const round5 = (min: number) => Math.round(min / 5) * 5;
 
+const yToTime = (y: number): string => {
+  const totalMinutes = round5(Math.floor((y / HOUR_HEIGHT) * 60));
+  const hour = DAY_START + Math.floor(totalMinutes / 60);
+  const min = totalMinutes % 60;
+  return `${String(Math.min(hour, DAY_END)).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+};
+
+const timeToY = (time: string): number => {
+  const [h, m] = time.split(":").map(Number);
+  return (h - DAY_START + m / 60) * HOUR_HEIGHT;
+};
+
 export default function BookingsPage() {
   const [rooms, setRooms] = useState<Resource[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<Resource | null>(null);
@@ -31,70 +43,31 @@ export default function BookingsPage() {
   const [tenants, setTenants] = useState<
     { id: number; company_name: string; coin_balance: number }[]
   >([]);
-  const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null);
+  const [selectedTenantId, setSelectedTenantId] = useState<number | null>(
+    null
+  );
   const [coinBalance, setCoinBalance] = useState(0);
+  const [selectedDate, setSelectedDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
+
   const [showModal, setShowModal] = useState(false);
   const [modalFrom, setModalFrom] = useState("09:00");
   const [modalTo, setModalTo] = useState("10:00");
-  const [modalDate, setModalDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
-  const [costPreview, setCostPreview] = useState("");
+  const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [saving, setSaving] = useState(false);
+  const [costPreview, setCostPreview] = useState("");
   const [role, setRole] = useState("");
 
-  const formatForCalendar = (isoStr: string) =>
-    isoStr.replace("T", " ").slice(0, 16);
+  // Drag state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<number | null>(null);
+  const [dragEnd, setDragEnd] = useState<number | null>(null);
 
-  const calendarEvents = bookings.map((b) => ({
-    id: String(b.id),
-    title: selectedRoom?.name || "Booking",
-    start: formatForCalendar(b.start_time),
-    end: formatForCalendar(b.end_time),
-    calendarId: "main",
-  }));
-
-  const calendar = useCalendarApp({
-    views: [createViewDay(), createViewWeek()],
-    events: calendarEvents,
-    calendars: {
-      main: {
-        colorName: "main",
-        lightColors: {
-          main: "#003DA5",
-          container: "#dbeafe",
-          onContainer: "#1e3a8a",
-        },
-      },
-    },
-    plugins: [createDragAndDropPlugin(5), createResizePlugin(5)],
-    dayBoundaries: { start: "08:00", end: "20:00" },
-    weekOptions: { gridHeight: 550, nDays: 1 },
-    callbacks: {
-      onEventUpdate(updatedEvent) {
-        const bookingId = parseInt(String(updatedEvent.id));
-        const newStart =
-          String(updatedEvent.start).replace(" ", "T") + ":00";
-        const newEnd =
-          String(updatedEvent.end).replace(" ", "T") + ":00";
-        api
-          .patch(`/bookings/${bookingId}`, {
-            start_time: newStart,
-            end_time: newEnd,
-          })
-          .then(() => loadBookings())
-          .catch((e) =>
-            console.error(
-              "Failed to update booking",
-              (e as Error)?.message
-            )
-          );
-      },
-      onSelectedDateUpdate(date: string) {
-        setModalDate(date);
-      },
-    },
-  });
+  // Filter bookings for selected date
+  const dayBookings = bookings.filter((b) =>
+    b.start_time.startsWith(selectedDate)
+  );
 
   const loadRooms = async () => {
     try {
@@ -137,9 +110,7 @@ export default function BookingsPage() {
   };
 
   useEffect(() => {
-    setRole(
-      document.cookie.match(/cbc_role=([^;]+)/)?.[1] || ""
-    );
+    setRole(document.cookie.match(/cbc_role=([^;]+)/)?.[1] || "");
     loadRooms();
     loadTenants();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -148,14 +119,6 @@ export default function BookingsPage() {
   useEffect(() => {
     loadBookings();
   }, [loadBookings]);
-
-  // Sync calendar events when bookings change
-  useEffect(() => {
-    if (calendar) {
-      calendar.events.set(calendarEvents);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookings]);
 
   // Cost preview
   useEffect(() => {
@@ -200,22 +163,65 @@ export default function BookingsPage() {
       await api.post("/bookings", {
         resource_id: selectedRoom.id,
         tenant_id: selectedTenantId,
-        start_time: `${modalDate}T${modalFrom}:00`,
-        end_time: `${modalDate}T${modalTo}:00`,
+        start_time: `${selectedDate}T${modalFrom}:00`,
+        end_time: `${selectedDate}T${modalTo}:00`,
       });
       setShowModal(false);
       await loadBookings();
       await loadTenants();
-      const t = tenants.find((t) => t.id === selectedTenantId);
-      if (t) setCoinBalance(t.coin_balance);
     } catch (e: unknown) {
       const detail =
-        (e as { response?: { data?: { detail?: string } } })?.response
-          ?.data?.detail || "Booking failed";
+        (e as { response?: { data?: { detail?: string } } })?.response?.data
+          ?.detail || "Booking failed";
       alert(detail);
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCancel = async (id: number) => {
+    try {
+      await api.delete(`/bookings/${id}`);
+      await loadBookings();
+      await loadTenants();
+    } catch (e: unknown) {
+      alert((e as Error)?.message || "Cancel failed");
+    }
+  };
+
+  const changeDate = (delta: number) => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + delta);
+    setSelectedDate(d.toISOString().slice(0, 10));
+  };
+
+  // Timeline mouse handlers
+  const handleTimelineMouseDown = (e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    setDragStart(y);
+    setDragEnd(y);
+    setIsDragging(true);
+  };
+  const handleTimelineMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDragEnd(e.clientY - rect.top);
+  };
+  const handleTimelineMouseUp = () => {
+    if (!isDragging || dragStart === null || dragEnd === null) return;
+    setIsDragging(false);
+    const minY = Math.min(dragStart, dragEnd);
+    const maxY = Math.max(dragStart, dragEnd);
+    if (maxY - minY < 5) return;
+    const fromTime = yToTime(minY);
+    const toTime = yToTime(maxY);
+    setModalFrom(fromTime);
+    setModalTo(toTime);
+    setEditBooking(null);
+    setShowModal(true);
+    setDragStart(null);
+    setDragEnd(null);
   };
 
   const timeSlots = Array.from({ length: (20 - 8) * 12 + 1 }, (_, i) => {
@@ -271,14 +277,10 @@ export default function BookingsPage() {
                 selectedRoom?.id === room.id ? "#eff6ff" : "white",
             }}
           >
-            <div
-              style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}
-            >
+            <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>
               {room.name}
             </div>
-            <div
-              style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}
-            >
+            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
               {room.capacity ?? 0} seats
             </div>
             <div style={{ fontSize: 12, color: "#6b7280" }}>
@@ -313,7 +315,6 @@ export default function BookingsPage() {
           </div>
         ))}
 
-        {/* Coin balance */}
         <div
           style={{
             marginTop: 16,
@@ -323,62 +324,56 @@ export default function BookingsPage() {
             border: "1px solid #fcd34d",
           }}
         >
-          <div
-            style={{ fontSize: 12, color: "#92400e", fontWeight: 500 }}
-          >
+          <div style={{ fontSize: 12, color: "#92400e", fontWeight: 500 }}>
             Coin balance
           </div>
-          <div
-            style={{ fontSize: 18, fontWeight: 700, color: "#78350f" }}
-          >
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#78350f" }}>
             {Math.round(coinBalance).toLocaleString()}
           </div>
         </div>
 
-        {/* Tenant selector (admin only) */}
-        {(role === "admin" || role === "manager") &&
-          tenants.length > 0 && (
-            <div style={{ marginTop: 12 }}>
-              <label
-                style={{
-                  fontSize: 11,
-                  color: "#6b7280",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                }}
-              >
-                BOOKING FOR
-              </label>
-              <select
-                value={selectedTenantId || ""}
-                onChange={(e) => {
-                  const id = +e.target.value;
-                  setSelectedTenantId(id);
-                  const t = tenants.find((t) => t.id === id);
-                  if (t) setCoinBalance(t.coin_balance);
-                }}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  marginTop: 4,
-                  padding: "7px 10px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: 6,
-                  fontSize: 13,
-                }}
-              >
-                {tenants.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.company_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+        {(role === "admin" || role === "manager") && tenants.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <label
+              style={{
+                fontSize: 11,
+                color: "#6b7280",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              BOOKING FOR
+            </label>
+            <select
+              value={selectedTenantId || ""}
+              onChange={(e) => {
+                const id = +e.target.value;
+                setSelectedTenantId(id);
+                const t = tenants.find((t) => t.id === id);
+                if (t) setCoinBalance(t.coin_balance);
+              }}
+              style={{
+                display: "block",
+                width: "100%",
+                marginTop: 4,
+                padding: "7px 10px",
+                border: "1px solid #d1d5db",
+                borderRadius: 6,
+                fontSize: 13,
+              }}
+            >
+              {tenants.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.company_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
-      {/* RIGHT: Calendar */}
+      {/* RIGHT: Date nav + Timeline */}
       <div
         style={{
           flex: 1,
@@ -387,55 +382,204 @@ export default function BookingsPage() {
           overflow: "hidden",
         }}
       >
-        {/* Toolbar */}
+        {/* Date navigation */}
         <div
           style={{
-            padding: "12px 16px",
-            borderBottom: "1px solid #e5e7eb",
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
+            gap: 12,
+            padding: "12px 16px",
+            borderBottom: "1px solid #e5e7eb",
             background: "white",
           }}
         >
-          <div
-            style={{ fontWeight: 600, fontSize: 15, color: "#111827" }}
-          >
-            {selectedRoom ? selectedRoom.name : "Select a room"}
-          </div>
           <button
-            onClick={() => {
-              const now = new Date();
-              const startMin = round5(
-                now.getHours() * 60 + now.getMinutes()
-              );
-              setModalFrom(minToTime(Math.min(startMin, 19 * 60)));
-              setModalTo(
-                minToTime(Math.min(startMin + 60, 20 * 60))
-              );
-              setModalDate(now.toISOString().slice(0, 10));
-              setShowModal(true);
-            }}
-            disabled={!selectedRoom}
+            onClick={() => changeDate(-1)}
             style={{
-              padding: "8px 16px",
-              background: "#003DA5",
-              color: "white",
-              border: "none",
+              border: "1px solid #d1d5db",
               borderRadius: 6,
-              fontSize: 14,
+              background: "white",
+              padding: "6px 12px",
               cursor: "pointer",
-              opacity: selectedRoom ? 1 : 0.5,
+              fontSize: 16,
             }}
           >
-            + New Booking
+            ‹
           </button>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            style={{
+              border: "1px solid #d1d5db",
+              borderRadius: 6,
+              padding: "6px 10px",
+              fontSize: 14,
+            }}
+          />
+          <button
+            onClick={() => changeDate(1)}
+            style={{
+              border: "1px solid #d1d5db",
+              borderRadius: 6,
+              background: "white",
+              padding: "6px 12px",
+              cursor: "pointer",
+              fontSize: 16,
+            }}
+          >
+            ›
+          </button>
+          <button
+            onClick={() =>
+              setSelectedDate(new Date().toISOString().slice(0, 10))
+            }
+            style={{
+              border: "1px solid #d1d5db",
+              borderRadius: 6,
+              background: "white",
+              padding: "6px 12px",
+              cursor: "pointer",
+              fontSize: 13,
+            }}
+          >
+            Today
+          </button>
+          <div style={{ marginLeft: "auto", fontWeight: 600, fontSize: 15 }}>
+            {selectedRoom?.name || "Select a room"}
+          </div>
         </div>
 
-        {/* Schedule-X Calendar */}
-        <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
+        {/* Day timeline */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "8px 16px" }}>
           {selectedRoom ? (
-            <ScheduleXCalendar calendarApp={calendar} />
+            <div
+              style={{
+                position: "relative",
+                height: TOTAL_HOURS * HOUR_HEIGHT,
+                cursor: "crosshair",
+                userSelect: "none",
+              }}
+              onMouseDown={handleTimelineMouseDown}
+              onMouseMove={handleTimelineMouseMove}
+              onMouseUp={handleTimelineMouseUp}
+              onMouseLeave={() => {
+                if (isDragging) {
+                  setIsDragging(false);
+                  setDragStart(null);
+                  setDragEnd(null);
+                }
+              }}
+            >
+              {/* Hour grid lines */}
+              {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => (
+                <div
+                  key={`h${i}`}
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    top: i * HOUR_HEIGHT,
+                    borderTop: "1px solid #e5e7eb",
+                    display: "flex",
+                    alignItems: "center",
+                    pointerEvents: "none",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: "#9ca3af",
+                      width: 45,
+                      textAlign: "right",
+                      paddingRight: 8,
+                    }}
+                  >
+                    {String(DAY_START + i).padStart(2, "0")}:00
+                  </span>
+                </div>
+              ))}
+
+              {/* 30-min grid lines */}
+              {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                <div
+                  key={`m${i}`}
+                  style={{
+                    position: "absolute",
+                    left: 45,
+                    right: 0,
+                    top: i * HOUR_HEIGHT + HOUR_HEIGHT / 2,
+                    borderTop: "1px dashed #f3f4f6",
+                    pointerEvents: "none",
+                  }}
+                />
+              ))}
+
+              {/* Existing bookings */}
+              {dayBookings.map((b) => {
+                const startT = b.start_time.slice(11, 16);
+                const endT = b.end_time.slice(11, 16);
+                const top = timeToY(startT);
+                const height = timeToY(endT) - top;
+                return (
+                  <div
+                    key={b.id}
+                    style={{
+                      position: "absolute",
+                      left: 50,
+                      right: 8,
+                      top,
+                      height: Math.max(height, 4),
+                      background: "#003DA5",
+                      borderRadius: 4,
+                      color: "white",
+                      fontSize: 12,
+                      padding: "2px 6px",
+                      overflow: "hidden",
+                      cursor: "pointer",
+                      zIndex: 2,
+                    }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => {
+                      setEditBooking(b);
+                      setModalFrom(startT);
+                      setModalTo(endT);
+                      setShowModal(true);
+                    }}
+                  >
+                    {startT} – {endT}
+                    {b.coins_charged > 0 && ` · ${b.coins_charged} coins`}
+                  </div>
+                );
+              })}
+
+              {/* Drag ghost */}
+              {isDragging && dragStart !== null && dragEnd !== null && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 50,
+                    right: 8,
+                    top: Math.min(dragStart, dragEnd),
+                    height: Math.abs(dragEnd - dragStart),
+                    background: "rgba(0,61,165,0.2)",
+                    border: "2px solid #003DA5",
+                    borderRadius: 4,
+                    pointerEvents: "none",
+                    zIndex: 3,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 12,
+                    color: "#003DA5",
+                    fontWeight: 600,
+                  }}
+                >
+                  {yToTime(Math.min(dragStart, dragEnd))} –{" "}
+                  {yToTime(Math.max(dragStart, dragEnd))}
+                </div>
+              )}
+            </div>
           ) : (
             <div
               style={{
@@ -465,7 +609,10 @@ export default function BookingsPage() {
             justifyContent: "center",
             background: "rgba(0,0,0,0.6)",
           }}
-          onMouseDown={() => setShowModal(false)}
+          onMouseDown={() => {
+            setShowModal(false);
+            setEditBooking(null);
+          }}
         >
           <div
             style={{
@@ -477,42 +624,10 @@ export default function BookingsPage() {
             }}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <h3
-              style={{
-                margin: "0 0 20px",
-                fontSize: 17,
-                fontWeight: 600,
-              }}
-            >
-              New Booking — {selectedRoom?.name}
+            <h3 style={{ margin: "0 0 20px", fontSize: 17, fontWeight: 600 }}>
+              {editBooking ? "Edit Booking" : "New Booking"} —{" "}
+              {selectedRoom?.name}
             </h3>
-
-            <label
-              style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color: "#374151",
-                display: "block",
-                marginBottom: 12,
-              }}
-            >
-              Date
-              <input
-                type="date"
-                value={modalDate}
-                onChange={(e) => setModalDate(e.target.value)}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  marginTop: 4,
-                  padding: "8px 10px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: 6,
-                  fontSize: 14,
-                  boxSizing: "border-box",
-                }}
-              />
-            </label>
 
             <div
               style={{
@@ -522,13 +637,7 @@ export default function BookingsPage() {
                 marginBottom: 16,
               }}
             >
-              <label
-                style={{
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: "#374151",
-                }}
-              >
+              <label style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
                 From
                 <select
                   value={modalFrom}
@@ -537,9 +646,7 @@ export default function BookingsPage() {
                     const fromMin = timeToMin(e.target.value);
                     const toMin = timeToMin(modalTo);
                     if (toMin <= fromMin)
-                      setModalTo(
-                        minToTime(Math.min(fromMin + 60, 20 * 60))
-                      );
+                      setModalTo(minToTime(Math.min(fromMin + 60, 20 * 60)));
                   }}
                   style={{
                     display: "block",
@@ -561,13 +668,7 @@ export default function BookingsPage() {
                     ))}
                 </select>
               </label>
-              <label
-                style={{
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: "#374151",
-                }}
-              >
+              <label style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
                 To
                 <select
                   value={modalTo}
@@ -614,38 +715,67 @@ export default function BookingsPage() {
               style={{
                 display: "flex",
                 gap: 10,
-                justifyContent: "flex-end",
+                justifyContent: "space-between",
               }}
             >
-              <button
-                onClick={() => setShowModal(false)}
-                style={{
-                  padding: "8px 16px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: 6,
-                  background: "white",
-                  cursor: "pointer",
-                  fontSize: 14,
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleBook}
-                disabled={saving || !selectedRoom}
-                style={{
-                  padding: "8px 16px",
-                  background: "#003DA5",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  fontSize: 14,
-                  opacity: saving ? 0.7 : 1,
-                }}
-              >
-                {saving ? "Booking..." : "Book Now"}
-              </button>
+              <div>
+                {editBooking && (
+                  <button
+                    onClick={async () => {
+                      await handleCancel(editBooking.id);
+                      setShowModal(false);
+                      setEditBooking(null);
+                    }}
+                    style={{
+                      padding: "8px 16px",
+                      border: "1px solid #fca5a5",
+                      borderRadius: 6,
+                      background: "white",
+                      color: "#dc2626",
+                      cursor: "pointer",
+                      fontSize: 14,
+                    }}
+                  >
+                    Cancel Booking
+                  </button>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => {
+                    setShowModal(false);
+                    setEditBooking(null);
+                  }}
+                  style={{
+                    padding: "8px 16px",
+                    border: "1px solid #d1d5db",
+                    borderRadius: 6,
+                    background: "white",
+                    cursor: "pointer",
+                    fontSize: 14,
+                  }}
+                >
+                  Close
+                </button>
+                {!editBooking && (
+                  <button
+                    onClick={handleBook}
+                    disabled={saving || !selectedRoom}
+                    style={{
+                      padding: "8px 16px",
+                      background: "#003DA5",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      fontSize: 14,
+                      opacity: saving ? 0.7 : 1,
+                    }}
+                  >
+                    {saving ? "Booking..." : "Book Now"}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
