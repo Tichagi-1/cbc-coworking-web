@@ -3,10 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
 import Cookies from "js-cookie";
+import { useCalendarApp, ScheduleXCalendar } from "@schedule-x/react";
+import { createViewDay, createViewWeek } from "@schedule-x/calendar";
+import { createDragAndDropPlugin } from "@schedule-x/drag-and-drop";
+import { createEventModalPlugin } from "@schedule-x/event-modal";
+import "@schedule-x/theme-default/dist/index.css";
 
 import { api, ROLE_COOKIE } from "@/lib/api";
 import type {
-  AvailabilitySlot,
   Booking,
   Resource,
   Tenant,
@@ -17,12 +21,6 @@ const FIRST_HOUR = 8;
 const LAST_HOUR = 20;
 const UZS_RATE = 12800;
 
-/** Round minutes UP to next 5-min boundary */
-function roundUp5(m: number): number {
-  return Math.ceil(m / 5) * 5;
-}
-
-/** Return "HH:MM" for an hour+minute value */
 function hhmm(totalMinutes: number): string {
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
@@ -37,17 +35,10 @@ function timeToMinutes(t: string): number {
 function defaultFrom(): string {
   const now = dayjs();
   let mins = now.hour() * 60 + now.minute();
-  mins = roundUp5(mins);
+  mins = Math.ceil(mins / 5) * 5;
   if (mins < FIRST_HOUR * 60) mins = FIRST_HOUR * 60;
-  if (mins >= LAST_HOUR * 60) mins = FIRST_HOUR * 60; // wrap to start
+  if (mins >= LAST_HOUR * 60) mins = FIRST_HOUR * 60;
   return hhmm(mins);
-}
-
-function defaultTo(from: string): string {
-  const fromMins = timeToMinutes(from);
-  let toMins = fromMins + 60;
-  if (toMins > LAST_HOUR * 60) toMins = LAST_HOUR * 60;
-  return hhmm(toMins);
 }
 
 export default function BookingsPage() {
@@ -57,37 +48,30 @@ export default function BookingsPage() {
   }, []);
   const isAdmin = role === "admin" || role === "manager";
 
-  // ── Data ────────────────────────────────────────────────────────────────
   const [rooms, setRooms] = useState<Resource[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
-
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [allTenants, setAllTenants] = useState<Tenant[]>([]);
   const [date, setDate] = useState(dayjs().format("YYYY-MM-DD"));
-  const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
-  const [myBookings, setMyBookings] = useState<Booking[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
 
-  // Time picker state
+  // Booking form
+  const [showBookForm, setShowBookForm] = useState(false);
   const [timeFrom, setTimeFrom] = useState(defaultFrom);
-  const [timeTo, setTimeTo] = useState(() => defaultTo(defaultFrom()));
-
+  const [timeTo, setTimeTo] = useState(() => {
+    const f = defaultFrom();
+    return hhmm(Math.min(timeToMinutes(f) + 60, LAST_HOUR * 60));
+  });
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [leadTimeWarning, setLeadTimeWarning] = useState<string | null>(null);
-
-  // Inline booking edit state
-  const [editingBookingId, setEditingBookingId] = useState<number | null>(null);
-  const [editFrom, setEditFrom] = useState("");
-  const [editTo, setEditTo] = useState("");
-  const [editSaving, setEditSaving] = useState(false);
 
   const selectedRoom = useMemo(
     () => rooms.find((r) => r.id === selectedRoomId) ?? null,
     [rooms, selectedRoomId]
   );
 
-  // ── Initial loads ───────────────────────────────────────────────────────
+  // ── Loads ───────────────────────────────────────────────────────────────
   useEffect(() => {
     api
       .get<Resource[]>("/resources", { params: { type: "meeting_room" } })
@@ -95,7 +79,7 @@ export default function BookingsPage() {
         setRooms(res.data);
         if (res.data.length > 0) setSelectedRoomId(res.data[0].id);
       })
-      .catch((e) => setError(e?.message || "Failed to load meeting rooms"));
+      .catch((e) => setError(e?.message || "Failed to load rooms"));
 
     api
       .get<Tenant | null>("/tenants/me")
@@ -114,123 +98,73 @@ export default function BookingsPage() {
       .catch(() => undefined);
   }, [isAdmin, tenant]);
 
-  // Refetch availability whenever room or date changes
-  useEffect(() => {
+  const refreshBookings = useCallback(async () => {
     if (!selectedRoomId) {
-      setSlots([]);
-      return;
-    }
-    api
-      .get<AvailabilitySlot[]>(
-        `/meeting-rooms/${selectedRoomId}/availability`,
-        { params: { date } }
-      )
-      .then((res) => {
-        setSlots(res.data);
-      })
-      .catch((e) => setError(e?.message || "Failed to load availability"));
-  }, [selectedRoomId, date]);
-
-  // Fetch my bookings
-  const refreshMyBookings = useCallback(async () => {
-    if (!tenant) {
-      setMyBookings([]);
+      setBookings([]);
       return;
     }
     try {
       const res = await api.get<Booking[]>("/bookings", {
-        params: { tenant_id: tenant.id },
+        params: { resource_id: selectedRoomId },
       });
-      const now = dayjs();
-      const upcoming = res.data
-        .filter((b) => dayjs(b.end_time).isAfter(now))
-        .sort(
-          (a, b) =>
-            dayjs(a.start_time).valueOf() - dayjs(b.start_time).valueOf()
-        );
-      setMyBookings(upcoming);
+      setBookings(res.data);
     } catch {
-      setMyBookings([]);
+      setBookings([]);
     }
-  }, [tenant]);
+  }, [selectedRoomId]);
 
   useEffect(() => {
-    refreshMyBookings();
-  }, [refreshMyBookings]);
+    refreshBookings();
+  }, [refreshBookings, date]);
 
-  // ── Lead-time auto-adjust ──────────────────────────────────────────────
-  useEffect(() => {
-    if (!selectedRoom) {
-      setLeadTimeWarning(null);
-      return;
-    }
-    const advMin = selectedRoom.min_advance_minutes || 0;
-    if (advMin <= 0) {
-      setLeadTimeWarning(null);
-      return;
-    }
-    const now = dayjs();
-    const startDt = dayjs(`${date}T${timeFrom}:00`);
-    const earliest = now.add(advMin, "minute");
-    if (startDt.isBefore(earliest)) {
-      // Auto-adjust
-      let newMins = roundUp5(earliest.hour() * 60 + earliest.minute());
-      if (newMins > LAST_HOUR * 60 - 30) {
-        setLeadTimeWarning(
-          `This room requires ${advMin} min advance booking. No available start time today.`
-        );
-        return;
-      }
-      if (newMins < FIRST_HOUR * 60) newMins = FIRST_HOUR * 60;
-      const newFrom = hhmm(newMins);
-      setTimeFrom(newFrom);
-      // Adjust "to" if needed
-      const toMins = timeToMinutes(timeTo);
-      if (toMins <= newMins + 30) {
-        const newTo = hhmm(Math.min(newMins + 60, LAST_HOUR * 60));
-        setTimeTo(newTo);
-      }
-      setLeadTimeWarning(
-        `Adjusted to ${newFrom} (${advMin} min advance required)`
-      );
-    } else {
-      setLeadTimeWarning(null);
-    }
-    // Only run when room/date changes, not on every timeFrom change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRoom?.id, date]);
+  // ── Schedule-X calendar ─────────────────────────────────────────────────
+  const calendarEvents = useMemo(() => {
+    return bookings.map((b) => ({
+      id: String(b.id),
+      title: selectedRoom?.name || "Booking",
+      start: b.start_time.replace("T", " ").slice(0, 16),
+      end: b.end_time.replace("T", " ").slice(0, 16),
+      calendarId: "bookings",
+    }));
+  }, [bookings, selectedRoom]);
 
-  // ── Overlap check ──────────────────────────────────────────────────────
-  const bookedIntervals = useMemo(() => {
-    return slots
-      .filter((s) => !s.available)
-      .map((s) => {
-        const start = timeToMinutes(s.time);
-        return { start, end: start + 30 };
-      });
-  }, [slots]);
+  const calendar = useCalendarApp({
+    views: [createViewDay(), createViewWeek()],
+    events: calendarEvents,
+    calendars: {
+      bookings: {
+        colorName: "bookings",
+        lightColors: {
+          main: "#003DA5",
+          container: "#dbeafe",
+          onContainer: "#1e3a8a",
+        },
+      },
+    },
+    plugins: [createDragAndDropPlugin(5), createEventModalPlugin()],
+    dayBoundaries: { start: "08:00", end: "20:00" },
+    selectedDate: date,
+    callbacks: {
+      onEventUpdate(updatedEvent) {
+        const bookingId = Number(updatedEvent.id);
+        const start_time = String(updatedEvent.start).replace(" ", "T") + ":00";
+        const end_time = String(updatedEvent.end).replace(" ", "T") + ":00";
+        api
+          .patch(`/bookings/${bookingId}`, { start_time, end_time })
+          .then(() => {
+            refreshBookings();
+            setToast("Booking moved");
+            setTimeout(() => setToast(null), 3000);
+          })
+          .catch(() => {
+            setError("Failed to move booking");
+            refreshBookings();
+          });
+      },
+    },
+  });
 
-  const overlapError = useMemo(() => {
-    const fromMins = timeToMinutes(timeFrom);
-    const toMins = timeToMinutes(timeTo);
-    for (const iv of bookedIntervals) {
-      if (fromMins < iv.end && toMins > iv.start) {
-        return `Overlaps with existing booking at ${hhmm(iv.start)}-${hhmm(iv.end)}`;
-      }
-    }
-    return null;
-  }, [timeFrom, timeTo, bookedIntervals]);
-
-  // ── Validation ─────────────────────────────────────────────────────────
-  const validationError = useMemo(() => {
-    const fromMins = timeToMinutes(timeFrom);
-    const toMins = timeToMinutes(timeTo);
-    if (toMins <= fromMins) return "End time must be after start time";
-    if (toMins - fromMins < 5) return "Minimum booking is 5 minutes";
-    return null;
-  }, [timeFrom, timeTo]);
-
-  // ── Cost calculation ───────────────────────────────────────────────────
+  // ── Cost preview ──────────────────────────────────────────────────────
   const cost = useMemo(() => {
     if (!selectedRoom) return null;
     const fromMins = timeToMinutes(timeFrom);
@@ -240,117 +174,49 @@ export default function BookingsPage() {
     const hours = (toMins - fromMins) / 60;
     const coinsRate = selectedRoom.rate_coins_per_hour ?? 0;
     const moneyRate = selectedRoom.rate_money_per_hour ?? 0;
-    // Use plan meeting discount if available, otherwise fall back to resource discount
-    const planDiscount =
+    const discountPct =
       selectedRoom.plan?.meeting_discount_on
         ? selectedRoom.plan.meeting_discount_pct
-        : 0;
-    const discountPct = planDiscount > 0 ? planDiscount : (selectedRoom.resident_discount_pct || 0);
-    const planName = planDiscount > 0 ? selectedRoom.plan?.name : null;
+        : selectedRoom.resident_discount_pct || 0;
     const isResident = tenant?.is_resident ?? false;
-    const discountMult = discountPct > 0 && isResident ? 1 - discountPct / 100 : 1;
+    const discountMult =
+      discountPct > 0 && isResident ? 1 - discountPct / 100 : 1;
     const effectiveMoneyRate = moneyRate * discountMult;
-
     const coinsNeeded = hours * coinsRate;
 
     if (!tenant) {
-      const moneyOwed = Math.round(hours * effectiveMoneyRate * 100) / 100;
-      const uzsOwed = Math.round(moneyOwed * UZS_RATE);
-      return {
-        hours,
-        coinsNeeded,
-        free: false,
-        coinsOwed: 0,
-        moneyOwed,
-        uzsOwed,
-        discountPct: isResident ? discountPct : 0,
-        planName: isResident ? planName : null,
-      };
+      return { hours, coinsNeeded, free: false, coinsOwed: 0, moneyOwed: 0, uzsOwed: 0 };
     }
-
     if (isResident) {
       if (tenant.coin_balance >= coinsNeeded) {
-        return {
-          hours,
-          coinsNeeded,
-          free: true,
-          coinsOwed: 0,
-          moneyOwed: 0,
-          uzsOwed: 0,
-          discountPct,
-          planName,
-        };
+        return { hours, coinsNeeded, free: true, coinsOwed: 0, moneyOwed: 0, uzsOwed: 0 };
       }
       const coinsOwed = coinsNeeded - tenant.coin_balance;
       const ratio = coinsRate > 0 ? effectiveMoneyRate / coinsRate : 0;
       const moneyOwed = Math.round(coinsOwed * ratio * 100) / 100;
-      const uzsOwed = Math.round(moneyOwed * UZS_RATE);
-      return {
-        hours,
-        coinsNeeded,
-        free: false,
-        coinsOwed,
-        moneyOwed,
-        uzsOwed,
-        discountPct,
-        planName,
-      };
+      return { hours, coinsNeeded, free: false, coinsOwed, moneyOwed, uzsOwed: Math.round(moneyOwed * UZS_RATE) };
     }
-
     const moneyOwed = Math.round(hours * effectiveMoneyRate * 100) / 100;
-    const uzsOwed = Math.round(moneyOwed * UZS_RATE);
-    return {
-      hours,
-      coinsNeeded,
-      free: false,
-      coinsOwed: 0,
-      moneyOwed,
-      uzsOwed,
-      discountPct: 0,
-      planName: null,
-    };
+    return { hours, coinsNeeded, free: false, coinsOwed: 0, moneyOwed, uzsOwed: Math.round(moneyOwed * UZS_RATE) };
   }, [selectedRoom, timeFrom, timeTo, tenant]);
 
   // ── Book ────────────────────────────────────────────────────────────────
   async function handleBook() {
     if (!selectedRoom || !tenant) return;
-    if (validationError || overlapError) return;
     setSubmitting(true);
     setError(null);
     try {
-      const start_time = `${date}T${timeFrom}:00`;
-      const end_time = `${date}T${timeTo}:00`;
-      const res = await api.post<Booking>("/bookings", {
+      await api.post("/bookings", {
         resource_id: selectedRoom.id,
         tenant_id: tenant.id,
-        start_time,
-        end_time,
+        start_time: `${date}T${timeFrom}:00`,
+        end_time: `${date}T${timeTo}:00`,
       });
-      // Refresh
-      const [avRes, meRes] = await Promise.all([
-        api.get<AvailabilitySlot[]>(
-          `/meeting-rooms/${selectedRoom.id}/availability`,
-          { params: { date } }
-        ),
-        api
-          .get<Tenant | null>("/tenants/me")
-          .then((r) => r.data)
-          .catch(() => null),
-      ]);
-      setSlots(avRes.data);
+      await refreshBookings();
+      const meRes = await api.get<Tenant | null>("/tenants/me").then((r) => r.data).catch(() => null);
       if (meRes) setTenant(meRes);
-      else if (isAdmin) {
-        const tlist = await api.get<Tenant[]>("/tenants/");
-        const updated = tlist.data.find((t) => t.id === tenant.id) ?? tenant;
-        setAllTenants(tlist.data);
-        setTenant(updated);
-      }
-      await refreshMyBookings();
-      setToast(
-        `Booked ${selectedRoom.name} from ${dayjs(res.data.start_time).format(
-          "HH:mm"
-        )} to ${dayjs(res.data.end_time).format("HH:mm")}`
-      );
+      setShowBookForm(false);
+      setToast("Booked!");
       setTimeout(() => setToast(null), 4000);
     } catch (e: unknown) {
       const detail =
@@ -362,110 +228,27 @@ export default function BookingsPage() {
     }
   }
 
-  async function handleCancel(bookingId: number) {
+  async function handleCancel(id: number) {
     try {
-      await api.delete(`/bookings/${bookingId}`);
-      await refreshMyBookings();
-      const meRes = await api
-        .get<Tenant | null>("/tenants/me")
-        .then((r) => r.data)
-        .catch(() => null);
+      await api.delete(`/bookings/${id}`);
+      await refreshBookings();
+      const meRes = await api.get<Tenant | null>("/tenants/me").then((r) => r.data).catch(() => null);
       if (meRes) setTenant(meRes);
-      if (selectedRoomId) {
-        const av = await api.get<AvailabilitySlot[]>(
-          `/meeting-rooms/${selectedRoomId}/availability`,
-          { params: { date } }
-        );
-        setSlots(av.data);
-      }
-      setToast("Booking cancelled");
-      setTimeout(() => setToast(null), 4000);
+      setToast("Cancelled");
+      setTimeout(() => setToast(null), 3000);
     } catch (e: unknown) {
-      setError((e as Error)?.message || "Cancellation failed");
+      setError((e as Error)?.message || "Cancel failed");
     }
   }
-
-  // ── Inline booking edit ─────────────────────────────────────────────────
-  function startEditBooking(b: Booking) {
-    setEditingBookingId(b.id);
-    setEditFrom(dayjs(b.start_time).format("HH:mm"));
-    setEditTo(dayjs(b.end_time).format("HH:mm"));
-  }
-
-  async function saveEditBooking() {
-    if (editingBookingId == null) return;
-    setEditSaving(true);
-    try {
-      const booking = myBookings.find((b) => b.id === editingBookingId);
-      if (!booking) return;
-      const dateStr = dayjs(booking.start_time).format("YYYY-MM-DD");
-      await api.patch(`/bookings/${editingBookingId}`, {
-        start_time: `${dateStr}T${editFrom}:00`,
-        end_time: `${dateStr}T${editTo}:00`,
-      });
-      setEditingBookingId(null);
-      await refreshMyBookings();
-      if (selectedRoomId) {
-        const av = await api.get<AvailabilitySlot[]>(
-          `/meeting-rooms/${selectedRoomId}/availability`,
-          { params: { date } }
-        );
-        setSlots(av.data);
-      }
-      setToast("Booking updated");
-      setTimeout(() => setToast(null), 4000);
-    } catch (e: unknown) {
-      const detail =
-        (e as { response?: { data?: { detail?: string } } })?.response?.data
-          ?.detail || (e as Error)?.message;
-      setError(detail || "Failed to update booking");
-    } finally {
-      setEditSaving(false);
-    }
-  }
-
-  // ── Timeline bar helpers ───────────────────────────────────────────────
-  const TOTAL_MINUTES = (LAST_HOUR - FIRST_HOUR) * 60; // 720
-
-  function minutesToPct(mins: number): number {
-    return ((mins - FIRST_HOUR * 60) / TOTAL_MINUTES) * 100;
-  }
-
-  const timelineSegments = useMemo(() => {
-    // Build segments: available (green), booked (red), selected (blue)
-    const fromMins = timeToMinutes(timeFrom);
-    const toMins = timeToMinutes(timeTo);
-    const selValid = toMins > fromMins && !validationError;
-
-    const segments: { start: number; end: number; type: "booked" | "selected" }[] = [];
-
-    // Booked segments from slots
-    for (const s of slots) {
-      if (!s.available) {
-        const sm = timeToMinutes(s.time);
-        segments.push({ start: sm, end: sm + 30, type: "booked" });
-      }
-    }
-
-    // Selected segment
-    if (selValid) {
-      segments.push({ start: fromMins, end: toMins, type: "selected" });
-    }
-
-    return segments;
-  }, [slots, timeFrom, timeTo, validationError]);
 
   // ── Render ──────────────────────────────────────────────────────────────
   return (
     <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* LEFT - room list */}
+      {/* LEFT — room list */}
       <div className="lg:col-span-1 space-y-3">
         <h2 className="text-xs uppercase tracking-wide text-gray-500 font-semibold">
           Meeting rooms
         </h2>
-        {rooms.length === 0 && (
-          <div className="text-sm text-gray-500">No meeting rooms yet.</div>
-        )}
         {rooms.map((r) => {
           const active = r.id === selectedRoomId;
           return (
@@ -480,40 +263,36 @@ export default function BookingsPage() {
             >
               <div className="flex items-baseline justify-between">
                 <div className="font-semibold text-gray-900">{r.name}</div>
-                <div className="text-xs text-gray-500">{r.capacity} seats</div>
+                <div className="text-xs text-gray-500">{r.capacity ?? 0} seats</div>
               </div>
               <div className="text-sm text-gray-600 mt-1">
-                {r.rate_coins_per_hour ?? 0}/hr coins &middot; ${r.rate_money_per_hour ?? 0}/hr
+                {r.rate_coins_per_hour ?? 0}/hr coins · ${r.rate_money_per_hour ?? 0}/hr
               </div>
-              {r.resident_discount_pct > 0 && (
-                <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-800 font-semibold">
-                  -{r.resident_discount_pct}% resident
-                </span>
-              )}
               {r.amenities && r.amenities.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
                   {r.amenities.map((a) => (
-                    <span
-                      key={a}
-                      className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-700"
-                    >
-                      {a}
-                    </span>
+                    <span key={a} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-700">{a}</span>
                   ))}
                 </div>
               )}
             </button>
           );
         })}
+
+        <div className="pt-2">
+          <div className="inline-flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-full px-3 py-1.5">
+            <span className="text-yellow-700 font-semibold text-sm">
+              {tenant ? `${tenant.coin_balance} coins` : "no tenant"}
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* RIGHT - booking interface */}
+      {/* RIGHT — calendar + controls */}
       <div className="lg:col-span-2 space-y-4">
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
-              Date
-            </label>
+            <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Date</label>
             <input
               type="date"
               value={date}
@@ -524,377 +303,167 @@ export default function BookingsPage() {
 
           {isAdmin && allTenants.length > 0 && (
             <div>
-              <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
-                Booking for tenant
-              </label>
+              <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Tenant</label>
               <select
                 value={tenant?.id ?? ""}
-                onChange={(e) => {
-                  const id = Number(e.target.value);
-                  setTenant(allTenants.find((t) => t.id === id) ?? null);
-                }}
+                onChange={(e) => setTenant(allTenants.find((t) => t.id === Number(e.target.value)) ?? null)}
                 className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
               >
                 {allTenants.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.company_name}
-                  </option>
+                  <option key={t.id} value={t.id}>{t.company_name}</option>
                 ))}
               </select>
             </div>
           )}
 
-          <div className="ml-auto inline-flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-full px-3 py-1.5">
-            <span className="text-yellow-700 font-semibold text-sm">
-              {tenant ? `${tenant.coin_balance} coins` : "no tenant"}
-            </span>
-          </div>
+          <button
+            onClick={() => setShowBookForm(true)}
+            disabled={!selectedRoom}
+            className="px-4 py-2 text-sm font-semibold text-white bg-cbc-blue hover:bg-cbc-bright-blue rounded-md disabled:opacity-50"
+          >
+            + New booking
+          </button>
         </div>
 
         {error && (
-          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3 flex items-start justify-between">
+          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3 flex justify-between">
             <span>{error}</span>
-            <button
-              onClick={() => setError(null)}
-              className="text-red-400 hover:text-red-700 ml-4"
-            >
-              x
-            </button>
+            <button onClick={() => setError(null)} className="text-red-400">×</button>
           </div>
         )}
-
         {toast && (
-          <div className="text-sm text-green-800 bg-green-50 border border-green-200 rounded-md p-3">
-            {toast}
-          </div>
+          <div className="text-sm text-green-800 bg-green-50 border border-green-200 rounded-md p-3">{toast}</div>
         )}
 
-        {leadTimeWarning && (
-          <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-3">
-            {leadTimeWarning}
-          </div>
-        )}
-
-        {/* Booking panel */}
+        {/* Schedule-X calendar */}
         {selectedRoom ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
-            <div className="text-sm font-semibold text-gray-900">
-              {selectedRoom.name} &middot; {dayjs(date).format("dddd, MMM D")}
-            </div>
-
-            {/* Time pickers */}
-            <div className="flex flex-wrap items-end gap-4">
-              <div>
-                <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
-                  From
-                </label>
-                <input
-                  type="time"
-                  step={300}
-                  min="08:00"
-                  max="20:00"
-                  value={timeFrom}
-                  onChange={(e) => {
-                    const nf = e.target.value;
-                    setTimeFrom(nf);
-                    // Auto-set To = From + 15 min, clamped to 20:00
-                    const fMins = timeToMinutes(nf);
-                    const tMins = Math.min(fMins + 15, LAST_HOUR * 60);
-                    setTimeTo(hhmm(tMins));
-                  }}
-                  className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
-                />
-              </div>
-              <div>
-                <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
-                  To
-                </label>
-                <input
-                  type="time"
-                  step={300}
-                  min="08:00"
-                  max="20:00"
-                  value={timeTo}
-                  onChange={(e) => setTimeTo(e.target.value)}
-                  className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
-                />
-              </div>
-              {cost && (
-                <div className="text-sm text-gray-600">
-                  {cost.hours.toFixed(1)} hr
-                  {cost.hours !== 1 ? "s" : ""}
-                </div>
-              )}
-            </div>
-
-            {/* Dual range slider */}
-            <DualRangeSlider
-              startMin={timeToMinutes(timeFrom) - FIRST_HOUR * 60}
-              endMin={timeToMinutes(timeTo) - FIRST_HOUR * 60}
-              onStartChange={(v) => setTimeFrom(hhmm(v + FIRST_HOUR * 60))}
-              onEndChange={(v) => setTimeTo(hhmm(Math.min(v + FIRST_HOUR * 60, LAST_HOUR * 60)))}
-              bookedIntervals={bookedIntervals.map((iv) => ({
-                start: iv.start - FIRST_HOUR * 60,
-                end: iv.end - FIRST_HOUR * 60,
-              }))}
-            />
-
-            {validationError && (
-              <div className="text-sm text-red-700 font-medium">{validationError}</div>
-            )}
-            {overlapError && (
-              <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-2 font-medium">
-                {overlapError}
-              </div>
-            )}
-
-            {/* Timeline bar */}
-            <div>
-              <div className="text-xs text-gray-500 mb-1">08:00 - 20:00 timeline</div>
-              <div className="relative h-8 bg-green-100 rounded-md overflow-hidden border border-gray-200">
-                {timelineSegments.map((seg, i) => {
-                  const left = minutesToPct(seg.start);
-                  const width = minutesToPct(seg.end) - left;
-                  const color =
-                    seg.type === "booked"
-                      ? "bg-red-400"
-                      : "bg-blue-500";
-                  return (
-                    <div
-                      key={`${seg.type}-${i}`}
-                      className={`absolute top-0 bottom-0 ${color}`}
-                      style={{ left: `${left}%`, width: `${width}%` }}
-                    />
-                  );
-                })}
-                {/* Hour markers */}
-                {Array.from({ length: LAST_HOUR - FIRST_HOUR + 1 }, (_, i) => {
-                  const hr = FIRST_HOUR + i;
-                  const pct = minutesToPct(hr * 60);
-                  return (
-                    <div
-                      key={hr}
-                      className="absolute top-0 bottom-0 border-l border-gray-300/50"
-                      style={{ left: `${pct}%` }}
-                    >
-                      <span className="absolute -top-4 text-[9px] text-gray-400 -translate-x-1/2">
-                        {hr}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="flex gap-4 mt-1 text-[10px] text-gray-500">
-                <span className="flex items-center gap-1">
-                  <span className="inline-block w-3 h-2 rounded bg-green-100 border border-gray-200" /> available
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="inline-block w-3 h-2 rounded bg-red-400" /> booked
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="inline-block w-3 h-2 rounded bg-blue-500" /> selected
-                </span>
-              </div>
-            </div>
-
-            {/* Cost preview */}
-            {cost && (
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-md text-sm">
-                <span className="font-medium text-gray-900">
-                  {cost.hours.toFixed(1)}{" "}
-                  {cost.hours === 1 ? "hour" : "hours"}: {cost.coinsNeeded.toFixed(1)}{" "}
-                  coins
-                </span>
-                {tenant && (
-                  <span className="text-gray-500">
-                    {" "}
-                    (you have {tenant.coin_balance})
-                  </span>
-                )}{" "}
-                {" -> "}
-                {cost.free ? (
-                  <span className="font-bold text-green-700">FREE</span>
-                ) : (
-                  <span className="font-bold text-gray-900">
-                    {cost.coinsOwed > 0 && `${cost.coinsOwed.toFixed(1)} coins + `}
-                    ${cost.moneyOwed.toFixed(2)}
-                    <span className="text-gray-500 font-normal ml-1">
-                      ({cost.uzsOwed.toLocaleString()}{"\u00A0"}sum)
-                    </span>
-                  </span>
-                )}
-                {cost.discountPct > 0 && (
-                  <span className="ml-2 text-green-700 font-semibold text-xs">
-                    {cost.planName
-                      ? `${cost.planName}: ${cost.discountPct}% resident discount`
-                      : `-${cost.discountPct}% resident discount`}
-                  </span>
-                )}
-              </div>
-            )}
-
-            <div className="flex justify-end">
-              <button
-                type="button"
-                disabled={
-                  submitting ||
-                  !tenant ||
-                  rooms.length === 0 ||
-                  !!validationError ||
-                  !!overlapError
-                }
-                onClick={handleBook}
-                className="px-4 py-2 text-sm font-semibold text-white bg-cbc-blue hover:bg-cbc-bright-blue rounded-md disabled:opacity-50"
-              >
-                {submitting ? "Booking..." : "Book Now"}
-              </button>
-            </div>
+          <div className="bg-white border border-gray-200 rounded-lg p-2 min-h-[500px]">
+            <ScheduleXCalendar calendarApp={calendar} />
           </div>
         ) : (
           <div className="text-sm text-gray-500 p-8 border border-dashed border-gray-300 rounded-md">
-            Select a meeting room from the left to see availability.
+            Select a meeting room.
           </div>
         )}
 
-        {/* My upcoming bookings */}
+        {/* My bookings list */}
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <h3 className="text-sm font-semibold text-gray-900 mb-3">
-            My upcoming bookings
+            Bookings for {selectedRoom?.name ?? "—"}
           </h3>
-          {myBookings.length === 0 ? (
-            <div className="text-sm text-gray-500">No upcoming bookings.</div>
+          {bookings.length === 0 ? (
+            <div className="text-sm text-gray-500">No bookings.</div>
           ) : (
             <ul className="divide-y divide-gray-100">
-              {myBookings.map((b) => {
-                const room = rooms.find((r) => r.id === b.resource_id);
-                const isEditing = editingBookingId === b.id;
-                return (
-                  <li key={b.id} className="py-2.5 text-sm">
-                    {isEditing ? (
-                      <div className="space-y-2">
-                        <div className="font-medium text-gray-900">
-                          {room?.name ?? `Room #${b.resource_id ?? "?"}`} — {dayjs(b.start_time).format("MMM D")}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input type="time" step={300} min="08:00" max="20:00" value={editFrom} onChange={(e) => setEditFrom(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-sm" />
-                          <span className="text-gray-400">to</span>
-                          <input type="time" step={300} min="08:00" max="20:00" value={editTo} onChange={(e) => setEditTo(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-sm" />
-                          <button type="button" onClick={saveEditBooking} disabled={editSaving} className="text-xs px-2.5 py-1 bg-cbc-blue text-white rounded disabled:opacity-50">{editSaving ? "..." : "Save"}</button>
-                          <button type="button" onClick={() => setEditingBookingId(null)} className="text-xs px-2.5 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">Cancel</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium text-gray-900">
-                            {room?.name ?? `Room #${b.resource_id ?? "?"}`}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {dayjs(b.start_time).format("MMM D, HH:mm")} -{" "}
-                            {dayjs(b.end_time).format("HH:mm")}
-                            {b.coins_charged > 0 && <span> &middot; {b.coins_charged} coins</span>}
-                            {b.money_charged > 0 && <span> &middot; ${b.money_charged}</span>}
-                            {b.money_charged_uzs > 0 && (
-                              <span className="text-gray-400"> ({b.money_charged_uzs.toLocaleString()}{"\u00A0"}sum)</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex gap-1">
-                          <button type="button" onClick={() => startEditBooking(b)} className="text-xs px-2.5 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">Edit</button>
-                          <button type="button" onClick={() => handleCancel(b.id)} className="text-xs px-2.5 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">Cancel</button>
-                        </div>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
+              {bookings.map((b) => (
+                <li key={b.id} className="py-2.5 flex items-center justify-between text-sm">
+                  <div>
+                    <div className="text-xs text-gray-500">
+                      {dayjs(b.start_time).format("MMM D, HH:mm")} – {dayjs(b.end_time).format("HH:mm")}
+                      {b.coins_charged > 0 && <span> · {b.coins_charged} coins</span>}
+                      {b.money_charged > 0 && <span> · ${b.money_charged}</span>}
+                      {b.money_charged_uzs > 0 && (
+                        <span className="text-gray-400"> ({b.money_charged_uzs.toLocaleString()} сум)</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleCancel(b.id)}
+                    className="text-xs px-2.5 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </li>
+              ))}
             </ul>
           )}
         </div>
       </div>
-    </div>
-  );
-}
 
-// ── Dual range slider ─────────────────────────────────────────────────────
-
-function DualRangeSlider({
-  startMin,
-  endMin,
-  onStartChange,
-  onEndChange,
-  bookedIntervals,
-}: {
-  startMin: number; // 0..720 (minutes from 08:00)
-  endMin: number;
-  onStartChange: (v: number) => void;
-  onEndChange: (v: number) => void;
-  bookedIntervals: { start: number; end: number }[];
-}) {
-  const MAX = 720;
-  const pct = (v: number) => (v / MAX) * 100;
-
-  return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-[10px] text-gray-500">
-        <span>{hhmm(startMin + FIRST_HOUR * 60)}</span>
-        <span>{hhmm(endMin + FIRST_HOUR * 60)}</span>
-      </div>
-      <div className="relative h-6">
-        {/* Track background */}
-        <div className="absolute inset-x-0 top-2 h-2 rounded bg-gray-200" />
-
-        {/* Booked intervals */}
-        {bookedIntervals.map((iv, i) => (
+      {/* Booking form modal */}
+      {showBookForm && selectedRoom && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)" }}
+          onMouseDown={() => setShowBookForm(false)}
+        >
           <div
-            key={i}
-            className="absolute top-2 h-2 bg-red-300 rounded"
-            style={{ left: `${pct(iv.start)}%`, width: `${pct(iv.end) - pct(iv.start)}%` }}
-          />
-        ))}
+            style={{ background: "white", borderRadius: 12, padding: 24, width: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Book {selectedRoom.name}
+            </h3>
 
-        {/* Selected range */}
-        {endMin > startMin && (
-          <div
-            className="absolute top-2 h-2 bg-blue-400 rounded"
-            style={{ left: `${pct(startMin)}%`, width: `${pct(endMin) - pct(startMin)}%` }}
-          />
-        )}
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">From</label>
+                  <input
+                    type="time"
+                    step={300}
+                    min="08:00"
+                    max="20:00"
+                    value={timeFrom}
+                    onChange={(e) => {
+                      setTimeFrom(e.target.value);
+                      const m = timeToMinutes(e.target.value);
+                      setTimeTo(hhmm(Math.min(m + 60, LAST_HOUR * 60)));
+                    }}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">To</label>
+                  <input
+                    type="time"
+                    step={300}
+                    min="08:00"
+                    max="20:00"
+                    value={timeTo}
+                    onChange={(e) => setTimeTo(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
 
-        {/* Start handle */}
-        <input
-          type="range"
-          min={0}
-          max={MAX}
-          step={5}
-          value={startMin}
-          onChange={(e) => {
-            const v = +e.target.value;
-            if (v < endMin) onStartChange(v);
-          }}
-          className="absolute inset-x-0 top-0 h-6 w-full appearance-none bg-transparent pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cbc-blue [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-cbc-blue [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
-        />
+              {cost && (
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-md text-sm">
+                  <span className="font-medium">{cost.hours.toFixed(1)} hrs: {cost.coinsNeeded.toFixed(0)} coins</span>
+                  {tenant && <span className="text-gray-500"> (have {tenant.coin_balance})</span>}
+                  {" → "}
+                  {cost.free ? (
+                    <span className="font-bold text-green-700">FREE</span>
+                  ) : (
+                    <span className="font-bold">
+                      {cost.coinsOwed > 0 && `${cost.coinsOwed.toFixed(0)} coins + `}
+                      ${cost.moneyOwed.toFixed(2)}
+                      {cost.uzsOwed > 0 && (
+                        <span className="text-gray-500 font-normal ml-1">({cost.uzsOwed.toLocaleString()} сум)</span>
+                      )}
+                    </span>
+                  )}
+                </div>
+              )}
 
-        {/* End handle */}
-        <input
-          type="range"
-          min={0}
-          max={MAX}
-          step={5}
-          value={endMin}
-          onChange={(e) => {
-            const v = +e.target.value;
-            if (v > startMin) onEndChange(v);
-          }}
-          className="absolute inset-x-0 top-0 h-6 w-full appearance-none bg-transparent pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cbc-bright-blue [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-cbc-bright-blue [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
-        />
-      </div>
-      <div className="flex justify-between text-[9px] text-gray-400">
-        <span>08:00</span>
-        <span>12:00</span>
-        <span>16:00</span>
-        <span>20:00</span>
-      </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setShowBookForm(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBook}
+                  disabled={submitting || !tenant}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-cbc-blue hover:bg-cbc-bright-blue rounded-md disabled:opacity-50"
+                >
+                  {submitting ? "Booking..." : "Book Now"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

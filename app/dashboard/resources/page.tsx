@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Cookies from "js-cookie";
 
 import { api, ROLE_COOKIE } from "@/lib/api";
+import EditResourceModal from "@/components/EditResourceModal";
 import type {
   Floor,
   Plan,
@@ -82,9 +83,8 @@ export default function ResourcesPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Edit state lives in the PARENT — not inside ResourceDetail
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const editingResource = resources.find((r) => r.id === editingId) ?? null;
+  // Edit state in the PARENT — the edit modal is rendered as a top-level portal
+  const [editingResource, setEditingResource] = useState<Resource | null>(null);
 
   async function loadResources() {
     try {
@@ -234,7 +234,7 @@ export default function ResourcesPage() {
           floor={floors.find((f) => f.id === selected.floor_id) ?? null}
           isAdmin={isAdmin}
           onClose={() => setSelected(null)}
-          onEditRequest={(id) => setEditingId(id)}
+          onEditRequest={() => setEditingResource(selected)}
           onDeleted={async () => {
             await loadResources();
             setSelected(null);
@@ -242,20 +242,18 @@ export default function ResourcesPage() {
         />
       )}
 
-      {/* Edit modal — rendered as PORTAL, completely outside detail panel DOM */}
-      {editingId != null && editingResource && (
+      {/* Edit modal — standalone component rendered as top-level portal */}
+      {editingResource && (
         <EditResourceModal
           resource={editingResource}
-          plans={plans}
-          onClose={() => setEditingId(null)}
-          onSaved={async () => {
-            setEditingId(null);
-            await loadResources();
-            if (selected?.id === editingId) {
-              const fresh = await api.get<Resource>(`/resources/${editingId}`);
-              setSelected(fresh.data);
-            }
+          onSave={(updated) => {
+            setResources((prev) =>
+              prev.map((r) => (r.id === updated.id ? updated : r))
+            );
+            if (selected?.id === updated.id) setSelected(updated);
+            setEditingResource(null);
           }}
+          onClose={() => setEditingResource(null)}
         />
       )}
 
@@ -289,7 +287,7 @@ function ResourceDetail({
   floor: Floor | null;
   isAdmin: boolean;
   onClose: () => void;
-  onEditRequest: (id: number) => void;
+  onEditRequest: () => void;
   onDeleted: () => Promise<void>;
 }) {
   const [submitting, setSubmitting] = useState(false);
@@ -415,7 +413,7 @@ function ResourceDetail({
               Delete
             </button>
             <button
-              onClick={() => onEditRequest(resource.id)}
+              onClick={() => onEditRequest()}
               className="flex-1 rounded-md bg-cbc-blue hover:bg-cbc-bright-blue text-white font-medium py-2"
             >
               Edit
@@ -424,224 +422,6 @@ function ResourceDetail({
         )}
       </aside>
     </>
-  );
-}
-
-// ── Edit resource modal (PORTAL — completely separate from detail panel) ──
-
-function EditResourceModal({
-  resource,
-  plans,
-  onClose,
-  onSaved,
-}: {
-  resource: Resource;
-  plans: Plan[];
-  onClose: () => void;
-  onSaved: () => Promise<void>;
-}) {
-  const [name, setName] = useState(resource.name);
-  const [status, setStatus] = useState<UnitStatus>(resource.status);
-  const [tenantName, setTenantName] = useState(resource.tenant_name ?? "");
-  const [areaM2, setAreaM2] = useState(String(resource.area_m2 ?? 0));
-  const [seats, setSeats] = useState(String(resource.seats ?? 1));
-  const [monthlyRate, setMonthlyRate] = useState(String(resource.monthly_rate ?? 0));
-  const [capacity, setCapacity] = useState(String(resource.capacity ?? 0));
-  const [coinsHr, setCoinsHr] = useState(String(resource.rate_coins_per_hour ?? 0));
-  const [moneyHr, setMoneyHr] = useState(String(resource.rate_money_per_hour ?? 0));
-  const [minAdvance, setMinAdvance] = useState(String(resource.min_advance_minutes ?? 0));
-  const [discountPct, setDiscountPct] = useState(String(resource.resident_discount_pct ?? 0));
-  const [planId, setPlanId] = useState<number | null>(resource.plan_id ?? null);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const selectedPlan = plans.find((p) => p.id === planId) ?? null;
-  const planRatePreview = selectedPlan
-    ? computePlanRate(selectedPlan, parseInt(seats, 10) || 1)
-    : null;
-
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
-      const patch: Record<string, unknown> = {
-        name: name.trim(),
-        status,
-        tenant_name: tenantName.trim() || null,
-      };
-      const rt = resource.resource_type;
-      if (rt === "office" || rt === "hot_desk" || rt === "open_space") {
-        patch.area_m2 = parseFloat(areaM2) || 0;
-        patch.seats = parseInt(seats, 10) || 1;
-        patch.monthly_rate = parseFloat(monthlyRate) || 0;
-      } else if (rt === "meeting_room") {
-        patch.capacity = parseInt(capacity, 10) || 0;
-        patch.rate_coins_per_hour = parseFloat(coinsHr) || 0;
-        patch.rate_money_per_hour = parseFloat(moneyHr) || 0;
-      }
-      patch.min_advance_minutes = parseInt(minAdvance, 10) || 0;
-      patch.resident_discount_pct = parseInt(discountPct, 10) || 0;
-      patch.plan_id = planId;
-      await api.patch(`/resources/${resource.id}`, patch);
-      await onSaved();
-    } catch (e: unknown) {
-      setError((e as Error)?.message || "Save failed");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-lg shadow-2xl w-full max-w-lg max-h-[80vh] overflow-auto p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <form onSubmit={save} className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">
-            Edit: {resource.name}
-          </h3>
-
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
-              Name
-            </label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
-              Status
-            </label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as UnitStatus)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
-            >
-              <option value="vacant">vacant</option>
-              <option value="occupied">occupied</option>
-              <option value="reserved">reserved</option>
-            </select>
-          </div>
-
-          {status === "occupied" && (
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
-                Tenant
-              </label>
-              <input
-                type="text"
-                value={tenantName}
-                onChange={(e) => setTenantName(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-              />
-            </div>
-          )}
-
-          {(resource.resource_type === "office" ||
-            resource.resource_type === "hot_desk" ||
-            resource.resource_type === "open_space") && (
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Area m²</label>
-                <input type="number" min="0" step="0.5" value={areaM2} onChange={(e) => setAreaM2(e.target.value)} className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Seats</label>
-                <input type="number" min="1" value={seats} onChange={(e) => setSeats(e.target.value)} className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Rate</label>
-                <input type="number" min="0" value={monthlyRate} onChange={(e) => setMonthlyRate(e.target.value)} className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
-              </div>
-            </div>
-          )}
-
-          {resource.resource_type === "meeting_room" && (
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Capacity</label>
-                <input type="number" min="1" value={capacity} onChange={(e) => setCapacity(e.target.value)} className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Coins/hr</label>
-                <input type="number" min="0" value={coinsHr} onChange={(e) => setCoinsHr(e.target.value)} className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">$/hr</label>
-                <input type="number" min="0" value={moneyHr} onChange={(e) => setMoneyHr(e.target.value)} className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Advance booking (min)</label>
-              <input type="number" min="0" step="5" value={minAdvance} onChange={(e) => setMinAdvance(e.target.value)} className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Resident discount %</label>
-              <input type="number" min="0" max="100" value={discountPct} onChange={(e) => setDiscountPct(e.target.value)} className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Tariff Plan</label>
-            <select
-              value={planId ?? ""}
-              onChange={(e) => setPlanId(e.target.value ? Number(e.target.value) : null)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
-            >
-              <option value="">-- No plan (manual rate) --</option>
-              {plans.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.billing_mode === "per_unit" ? "per unit" : "per seat"})
-                </option>
-              ))}
-            </select>
-            {selectedPlan && planRatePreview != null && (
-              <div className="text-xs text-gray-500 mt-1">
-                {selectedPlan.billing_mode === "per_seat"
-                  ? `= ${formatUzs(selectedPlan.base_rate_uzs)} x ${parseInt(seats, 10) || 1} seats = ${formatUzs(planRatePreview)}/month`
-                  : `= ${formatUzs(planRatePreview)}/month`}
-              </div>
-            )}
-          </div>
-
-          {error && (
-            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">{error}</div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={submitting}
-              className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-4 py-2 text-sm font-medium text-white bg-cbc-blue hover:bg-cbc-bright-blue rounded-md disabled:opacity-50"
-            >
-              {submitting ? "Saving…" : "Save"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
   );
 }
 
