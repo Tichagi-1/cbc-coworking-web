@@ -21,6 +21,7 @@ import type {
   UserRole,
   Zone,
 } from "@/lib/types";
+import type { FloorCanvasHandle } from "@/components/FloorCanvas";
 import ZonePanel, { ResourcePatchPayload } from "@/components/ZonePanel";
 import AddFloorModal from "@/components/AddFloorModal";
 import ZoneNameModal from "@/components/ZoneNameModal";
@@ -74,6 +75,7 @@ export default function MapPage() {
   const [deleteFloorSubmitting, setDeleteFloorSubmitting] = useState(false);
 
   const resourceCacheRef = useRef<Map<number, Resource>>(new Map());
+  const floorCanvasRef = useRef<FloorCanvasHandle>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const [mode, setMode] = useState<Mode>("view");
@@ -619,17 +621,15 @@ export default function MapPage() {
             })}
           </div>
 
-          {/* Export buttons */}
+          {/* Export buttons — use fabric canvas export */}
           <button
             type="button"
-            onClick={async () => {
-              const el = document.querySelector(".floor-canvas-wrapper");
-              if (!el) return;
-              const html2canvas = (await import("html2canvas")).default;
-              const canvas = await html2canvas(el as HTMLElement, { backgroundColor: "white", scale: 2 });
+            onClick={() => {
+              const dataURL = floorCanvasRef.current?.exportPNG();
+              if (!dataURL) { alert("No floor plan loaded"); return; }
               const link = document.createElement("a");
               link.download = `floor-plan-${floorId}-${dayjs().format("YYYY-MM-DD")}.png`;
-              link.href = canvas.toDataURL("image/png");
+              link.href = dataURL;
               link.click();
             }}
             className="px-3 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
@@ -639,16 +639,13 @@ export default function MapPage() {
           <button
             type="button"
             onClick={async () => {
-              const el = document.querySelector(".floor-canvas-wrapper");
-              if (!el) return;
-              const html2canvas = (await import("html2canvas")).default;
-              const canvas = await html2canvas(el as HTMLElement, { backgroundColor: "white", scale: 2 });
-              const imgData = canvas.toDataURL("image/png");
+              const dataURL = floorCanvasRef.current?.exportPNG();
+              if (!dataURL) { alert("No floor plan loaded"); return; }
               const { jsPDF } = await import("jspdf");
               const pdf = new jsPDF("landscape", "mm", "a4");
               const pw = pdf.internal.pageSize.getWidth();
               const ph = pdf.internal.pageSize.getHeight();
-              pdf.addImage(imgData, "PNG", 0, 0, pw, ph);
+              pdf.addImage(dataURL, "PNG", 0, 0, pw, ph);
               pdf.save(`floor-plan-${dayjs().format("YYYY-MM-DD")}.pdf`);
             }}
             className="px-3 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
@@ -656,14 +653,46 @@ export default function MapPage() {
             PDF
           </button>
 
-          {mode === "history" && (
-            <input
-              type="date"
-              value={historyDate}
-              onChange={(e) => setHistoryDate(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
-            />
-          )}
+          {/* History mode — date slider */}
+          {mode === "history" && (() => {
+            const now = new Date();
+            const minDate = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+            const maxDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            const dateToVal = (d: Date) => Math.floor((d.getTime() - minDate.getTime()) / 86400000);
+            const valToDate = (v: number) => new Date(minDate.getTime() + v * 86400000).toISOString().slice(0, 10);
+            const totalDays = dateToVal(maxDate);
+            const sliderVal = dateToVal(new Date(historyDate || now.toISOString().slice(0, 10)));
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 260 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#9ca3af" }}>
+                  <span>{minDate.toLocaleDateString("en", { month: "short", year: "numeric" })}</span>
+                  <span style={{ fontWeight: 600, color: "#003DA5", fontSize: 13 }}>
+                    {new Date(historyDate).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })}
+                  </span>
+                  <span>{maxDate.toLocaleDateString("en", { month: "short", year: "numeric" })}</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={totalDays}
+                  value={sliderVal}
+                  onChange={(e) => setHistoryDate(valToDate(+e.target.value))}
+                  style={{ width: "100%", accentColor: "#003DA5", cursor: "pointer" }}
+                />
+                <div style={{ display: "flex", gap: 4 }}>
+                  {[{ label: "30d ago", offset: -30 }, { label: "7d ago", offset: -7 }, { label: "Today", offset: 0 }].map(({ label, offset }) => {
+                    const d = new Date(); d.setDate(d.getDate() + offset);
+                    return (
+                      <button key={offset} onClick={() => setHistoryDate(d.toISOString().slice(0, 10))}
+                        style={{ flex: 1, padding: "3px 0", fontSize: 11, border: "1px solid #e5e7eb", borderRadius: 4, background: "white", cursor: "pointer", color: "#6b7280" }}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -698,6 +727,7 @@ export default function MapPage() {
         ) : (
           <div className="floor-canvas-wrapper">
             <FloorCanvas
+              ref={floorCanvasRef}
               floorPlanUrl={planUrl}
               zones={allZones}
               mode={mode}

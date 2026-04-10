@@ -3,8 +3,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // fabric@5 has no upstream d.ts; localize `any` to this file.
 
-import { useEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import type { Point, Zone, UnitStatus, ResourceType } from "@/lib/types";
+
+export interface FloorCanvasHandle {
+  exportPNG: () => string | null;
+}
 
 type Mode = "view" | "edit" | "history";
 
@@ -84,7 +88,7 @@ function polygonCentroid(points: Point[]): Point {
   return { x: cx / points.length, y: cy / points.length };
 }
 
-export default function FloorCanvas({
+const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function FloorCanvas({
   floorPlanUrl,
   zones,
   mode,
@@ -93,11 +97,19 @@ export default function FloorCanvas({
   onZoneClick,
   onZoneSelect,
   onZoneCreated,
-}: FloorCanvasProps) {
+}, ref) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasElRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<any>(null);
   const fabricLibRef = useRef<any>(null);
+
+  useImperativeHandle(ref, () => ({
+    exportPNG: () => {
+      const canvas = fabricCanvasRef.current;
+      if (!canvas) return null;
+      return canvas.toDataURL({ format: "png", multiplier: 2, quality: 1 });
+    },
+  }));
 
   // Natural (unscaled) base size — image dimensions when a plan is loaded,
   // otherwise the default. All polygon coordinates live in this space.
@@ -380,4 +392,6 @@ export default function FloorCanvas({
       <canvas ref={canvasElRef} />
     </div>
   );
-}
+});
+
+export default FloorCanvas;
