@@ -5,92 +5,50 @@ import dayjs from "dayjs";
 import { api } from "@/lib/api";
 import type { Tenant } from "@/lib/types";
 
-const BUILDING_ID = 1;
-
-interface CoinSummaryItem {
-  resource_id: number;
-  resource_name: string;
-  plan_name: string | null;
-  coin_pct: number;
-  base_rate_uzs: number;
-  coins_accrued: number;
-}
-
 interface CoinSummary {
   tenant_id: number;
-  total_coins_accrued: number;
-  total_monthly_uzs: number;
-  next_reset_date: string | null;
-  breakdown: CoinSummaryItem[];
+  company_name: string;
+  coin_balance: number;
+  coin_last_reset: string | null;
+  next_reset: string | null;
+  projected_coins: number;
+  breakdown: { resource_name: string; monthly_rate_uzs: number; coin_pct: number; coins: number }[];
 }
 
-function formatUzs(value: number): string {
-  return value.toLocaleString() + " сум";
+interface CoinTx {
+  id: number;
+  delta: number;
+  reason: string;
+  note: string | null;
+  created_at: string;
+}
+
+function balanceColor(bal: number): string {
+  if (bal >= 1000) return "#059669";
+  if (bal >= 100) return "#D97706";
+  return "#DC2626";
 }
 
 export default function TenantsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [coinSummary, setCoinSummary] = useState<CoinSummary | null>(null);
-  const [loadingSummary, setLoadingSummary] = useState(false);
-  const [resetting, setResetting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-
-  async function loadTenants() {
-    try {
-      const res = await api.get<Tenant[]>("/tenants/", {
-        params: { building_id: BUILDING_ID },
-      });
-      setTenants(res.data);
-    } catch (e) {
-      setError((e as Error)?.message || "Failed to load tenants");
-    }
-  }
+  const [coinModalTenant, setCoinModalTenant] = useState<Tenant | null>(null);
+  const [role, setRole] = useState("");
 
   useEffect(() => {
+    setRole(document.cookie.match(/cbc_role=([^;]+)/)?.[1] || "");
     loadTenants();
   }, []);
 
-  async function toggleExpand(tenantId: number) {
-    if (expandedId === tenantId) {
-      setExpandedId(null);
-      setCoinSummary(null);
-      return;
-    }
-    setExpandedId(tenantId);
-    setCoinSummary(null);
-    setLoadingSummary(true);
-    try {
-      const res = await api.get<CoinSummary>(
-        `/tenants/${tenantId}/coin-summary`
-      );
-      setCoinSummary(res.data);
-    } catch {
-      setCoinSummary(null);
-    } finally {
-      setLoadingSummary(false);
-    }
-  }
+  const isAdmin = role === "admin" || role === "manager";
 
-  async function handleResetCoins(tenantId: number) {
-    if (!confirm("Reset coins for this tenant? This will set balance to the accrued amount."))
-      return;
-    setResetting(true);
+  async function loadTenants() {
     try {
-      await api.post(`/tenants/${tenantId}/coins/reset`);
-      await loadTenants();
-      // Refresh summary
-      const res = await api.get<CoinSummary>(
-        `/tenants/${tenantId}/coin-summary`
-      );
-      setCoinSummary(res.data);
-      setToast("Coins reset successfully");
-      setTimeout(() => setToast(null), 3000);
+      const res = await api.get<Tenant[]>("/tenants/");
+      setTenants(res.data);
     } catch (e) {
-      setError((e as Error)?.message || "Failed to reset coins");
-    } finally {
-      setResetting(false);
+      setError((e as Error)?.message || "Failed to load tenants");
     }
   }
 
@@ -101,9 +59,7 @@ export default function TenantsPage() {
       {error && (
         <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3 mb-4 flex justify-between">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-400">
-            x
-          </button>
+          <button onClick={() => setError(null)} className="text-red-400">×</button>
         </div>
       )}
       {toast && (
@@ -121,189 +77,279 @@ export default function TenantsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">
-                  Company
-                </th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">
-                  Plan
-                </th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">
-                  Coin Balance
-                </th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">
-                  Last Reset
-                </th>
-                <th className="text-center px-4 py-3 font-semibold text-gray-600">
-                  Resident
-                </th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Company</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Plan</th>
+                <th className="text-right px-4 py-3 font-semibold text-gray-600">Coin Balance</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Last Reset</th>
+                <th className="text-center px-4 py-3 font-semibold text-gray-600">Resident</th>
+                {isAdmin && (
+                  <th className="text-center px-4 py-3 font-semibold text-gray-600">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {tenants.map((t) => {
-                const isExpanded = expandedId === t.id;
-                return (
-                  <tr key={t.id} className="group">
-                    <td colSpan={5} className="p-0">
-                      {/* Main row */}
+              {tenants.map((t) => (
+                <tr key={t.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium text-gray-900">{t.company_name}</td>
+                  <td className="px-4 py-3">
+                    {t.plan_type ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-semibold">
+                        {t.plan_type}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">--</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold" style={{ color: balanceColor(t.coin_balance) }}>
+                    {Math.round(t.coin_balance).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-gray-500">
+                    {t.coin_last_reset ? dayjs(t.coin_last_reset).format("MMM D, YYYY") : "--"}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {t.is_resident ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-800 font-semibold">YES</span>
+                    ) : (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-semibold">NO</span>
+                    )}
+                  </td>
+                  {isAdmin && (
+                    <td className="px-4 py-3 text-center">
                       <button
-                        onClick={() => toggleExpand(t.id)}
-                        className="w-full text-left flex items-center hover:bg-gray-50 transition"
+                        onClick={() => setCoinModalTenant(t)}
+                        style={{ padding: "4px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500 }}
                       >
-                        <span className="px-4 py-3 flex-1 font-medium text-gray-900">
-                          {t.company_name}
-                        </span>
-                        <span className="px-4 py-3 w-40">
-                          {t.plan_type ? (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-semibold">
-                              {t.plan_type}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400">--</span>
-                          )}
-                        </span>
-                        <span className="px-4 py-3 w-32 text-right font-medium text-gray-900">
-                          {t.coin_balance.toLocaleString()}
-                        </span>
-                        <span className="px-4 py-3 w-36 text-gray-500">
-                          {t.coin_last_reset
-                            ? dayjs(t.coin_last_reset).format("MMM D, YYYY")
-                            : "--"}
-                        </span>
-                        <span className="px-4 py-3 w-24 text-center">
-                          {t.is_resident ? (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-800 font-semibold">
-                              YES
-                            </span>
-                          ) : (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-semibold">
-                              NO
-                            </span>
-                          )}
-                        </span>
+                        Coins
                       </button>
-
-                      {/* Expanded detail */}
-                      {isExpanded && (
-                        <div className="px-4 pb-4 pt-2 bg-gray-50 border-t border-gray-100">
-                          {loadingSummary ? (
-                            <div className="text-sm text-gray-500">
-                              Loading coin summary...
-                            </div>
-                          ) : coinSummary ? (
-                            <div className="space-y-3">
-                              <div className="grid grid-cols-3 gap-4">
-                                <div className="bg-white rounded-md border border-gray-200 p-3">
-                                  <div className="text-xs uppercase tracking-wide text-gray-500">
-                                    Total Monthly
-                                  </div>
-                                  <div className="text-lg font-semibold text-gray-900">
-                                    {formatUzs(coinSummary.total_monthly_uzs)}
-                                  </div>
-                                </div>
-                                <div className="bg-white rounded-md border border-gray-200 p-3">
-                                  <div className="text-xs uppercase tracking-wide text-gray-500">
-                                    Coins Accrued
-                                  </div>
-                                  <div className="text-lg font-semibold text-gray-900">
-                                    {coinSummary.total_coins_accrued.toLocaleString()}
-                                  </div>
-                                </div>
-                                <div className="bg-white rounded-md border border-gray-200 p-3">
-                                  <div className="text-xs uppercase tracking-wide text-gray-500">
-                                    Next Reset
-                                  </div>
-                                  <div className="text-lg font-semibold text-gray-900">
-                                    {coinSummary.next_reset_date
-                                      ? dayjs(coinSummary.next_reset_date).format(
-                                          "MMM D, YYYY"
-                                        )
-                                      : "--"}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Breakdown table */}
-                              {coinSummary.breakdown.length > 0 && (
-                                <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
-                                  <table className="w-full text-sm">
-                                    <thead>
-                                      <tr className="bg-gray-50 border-b border-gray-200">
-                                        <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">
-                                          Resource
-                                        </th>
-                                        <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">
-                                          Plan
-                                        </th>
-                                        <th className="text-right px-3 py-2 text-xs font-semibold text-gray-500">
-                                          Base Rate
-                                        </th>
-                                        <th className="text-right px-3 py-2 text-xs font-semibold text-gray-500">
-                                          Coin %
-                                        </th>
-                                        <th className="text-right px-3 py-2 text-xs font-semibold text-gray-500">
-                                          Coins
-                                        </th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                      {coinSummary.breakdown.map((item) => (
-                                        <tr key={item.resource_id}>
-                                          <td className="px-3 py-2 text-gray-900">
-                                            {item.resource_name}
-                                          </td>
-                                          <td className="px-3 py-2">
-                                            {item.plan_name ? (
-                                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-semibold">
-                                                {item.plan_name}
-                                              </span>
-                                            ) : (
-                                              <span className="text-gray-400">
-                                                --
-                                              </span>
-                                            )}
-                                          </td>
-                                          <td className="px-3 py-2 text-right text-gray-700">
-                                            {formatUzs(item.base_rate_uzs)}
-                                          </td>
-                                          <td className="px-3 py-2 text-right text-gray-700">
-                                            {item.coin_pct}%
-                                          </td>
-                                          <td className="px-3 py-2 text-right font-medium text-gray-900">
-                                            {item.coins_accrued.toLocaleString()}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )}
-
-                              <div className="flex justify-end">
-                                <button
-                                  onClick={() => handleResetCoins(t.id)}
-                                  disabled={resetting}
-                                  className="px-3 py-1.5 text-sm font-medium border border-amber-300 text-amber-700 rounded-md hover:bg-amber-50 disabled:opacity-50"
-                                >
-                                  {resetting ? "Resetting..." : "Reset Coins"}
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-sm text-gray-500">
-                              Could not load coin summary. The API may not be
-                              available yet.
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </td>
-                  </tr>
-                );
-              })}
+                  )}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* Coin management modal */}
+      {coinModalTenant && (
+        <CoinModal
+          tenant={coinModalTenant}
+          onClose={() => setCoinModalTenant(null)}
+          onUpdated={async () => {
+            await loadTenants();
+            // Refresh the modal's tenant data
+            const fresh = await api.get<Tenant[]>("/tenants/");
+            const updated = fresh.data.find((t) => t.id === coinModalTenant.id);
+            if (updated) setCoinModalTenant(updated);
+            setToast("Coins updated");
+            setTimeout(() => setToast(null), 3000);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Coin management modal ─────────────────────────────────────────────────
+
+function CoinModal({
+  tenant,
+  onClose,
+  onUpdated,
+}: {
+  tenant: Tenant;
+  onClose: () => void;
+  onUpdated: () => Promise<void>;
+}) {
+  const [adjustAmount, setAdjustAmount] = useState(0);
+  const [adjustNote, setAdjustNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [error, setError] = useState("");
+  const [history, setHistory] = useState<CoinTx[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [summary, setSummary] = useState<CoinSummary | null>(null);
+
+  useEffect(() => {
+    // Load tx history
+    setLoadingHistory(true);
+    api
+      .get<CoinTx[]>(`/tenants/${tenant.id}/coins/history`)
+      .then((r) => setHistory(r.data.slice(0, 10)))
+      .catch(() => {})
+      .finally(() => setLoadingHistory(false));
+
+    // Load summary for accrual info
+    api
+      .get<CoinSummary>(`/tenants/${tenant.id}/coin-summary`)
+      .then((r) => setSummary(r.data))
+      .catch(() => {});
+  }, [tenant.id]);
+
+  async function handleAdjust() {
+    if (adjustAmount === 0) return;
+    setSaving(true);
+    setError("");
+    try {
+      await api.post(`/tenants/${tenant.id}/coins/adjust`, {
+        delta: adjustAmount,
+        note: adjustNote || null,
+      });
+      setAdjustAmount(0);
+      setAdjustNote("");
+      await onUpdated();
+      // Refresh history
+      const h = await api.get<CoinTx[]>(`/tenants/${tenant.id}/coins/history`);
+      setHistory(h.data.slice(0, 10));
+    } catch (e: unknown) {
+      setError((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed to adjust");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleReset() {
+    if (!confirm("This will REPLACE the current coin balance with the newly calculated accrual amount. Continue?"))
+      return;
+    setResetting(true);
+    setError("");
+    try {
+      await api.post(`/tenants/${tenant.id}/coins/reset`);
+      await onUpdated();
+      const h = await api.get<CoinTx[]>(`/tenants/${tenant.id}/coins/history`);
+      setHistory(h.data.slice(0, 10));
+      const s = await api.get<CoinSummary>(`/tenants/${tenant.id}/coin-summary`);
+      setSummary(s.data);
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Failed to reset");
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  const projectedCoins = summary?.projected_coins ?? Math.round(tenant.monthly_rate * 0.25);
+  const inputStyle: React.CSSProperties = {
+    display: "block", width: "100%", marginTop: 4, padding: "8px 10px",
+    border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
+  };
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)" }}
+      onMouseDown={onClose}
+    >
+      <div
+        style={{ background: "white", borderRadius: 12, padding: 28, width: 520, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>
+            Coin Management — {tenant.company_name}
+          </h2>
+          <button onClick={onClose} style={{ border: "none", background: "none", fontSize: 20, cursor: "pointer", color: "#666" }}>×</button>
+        </div>
+
+        {/* Current balance */}
+        <div style={{ background: "#fef3c7", padding: 16, borderRadius: 8, textAlign: "center", marginBottom: 20 }}>
+          <div style={{ fontSize: 12, color: "#92400e" }}>Current Balance</div>
+          <div style={{ fontSize: 32, fontWeight: 700, color: balanceColor(tenant.coin_balance) }}>
+            {Math.round(tenant.coin_balance).toLocaleString()}
+          </div>
+          <div style={{ fontSize: 12, color: "#92400e" }}>coins</div>
+        </div>
+
+        {error && (
+          <div style={{ background: "#fee2e2", color: "#dc2626", padding: "8px 12px", borderRadius: 6, marginBottom: 12, fontSize: 13 }}>{error}</div>
+        )}
+
+        {/* ACTION 1 — Adjust */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#374151", marginBottom: 8 }}>Add / Deduct Coins</div>
+          <label style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
+            Amount (+ to add, − to deduct)
+            <input type="number" value={adjustAmount || ""} onChange={(e) => setAdjustAmount(+e.target.value)} placeholder="e.g. 500 or -200" style={inputStyle} />
+          </label>
+          <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", marginTop: 8, display: "block" }}>
+            Reason (optional)
+            <input type="text" value={adjustNote} onChange={(e) => setAdjustNote(e.target.value)} placeholder="Manual adjustment" style={inputStyle} />
+          </label>
+          {adjustAmount !== 0 && (
+            <div style={{ fontSize: 13, color: "#6b7280", marginTop: 8 }}>
+              New balance: <strong style={{ color: balanceColor(tenant.coin_balance + adjustAmount) }}>
+                {Math.round(tenant.coin_balance + adjustAmount).toLocaleString()}
+              </strong> coins
+            </div>
+          )}
+          <button onClick={handleAdjust} disabled={saving || adjustAmount === 0}
+            style={{ marginTop: 10, padding: "8px 16px", background: "#003DA5", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, opacity: saving || adjustAmount === 0 ? 0.5 : 1 }}>
+            {saving ? "Applying..." : "Apply Adjustment"}
+          </button>
+        </div>
+
+        {/* ACTION 2 — Monthly Reset */}
+        <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 16, marginBottom: 20 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#374151", marginBottom: 8 }}>Monthly Coin Reset</div>
+          <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.8, marginBottom: 12 }}>
+            Projected accrual: <strong>{projectedCoins.toLocaleString()}</strong> coins<br />
+            {summary?.breakdown && summary.breakdown.length > 0 && (
+              <>Based on {summary.breakdown.length} occupied resource(s)<br /></>
+            )}
+            Last reset: {tenant.coin_last_reset ? dayjs(tenant.coin_last_reset).format("MMM D, YYYY") : "Never"}
+          </div>
+          <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 6, padding: "8px 12px", fontSize: 12, color: "#92400e", marginBottom: 10 }}>
+            This will REPLACE current balance with the newly calculated amount.
+          </div>
+          <button onClick={handleReset} disabled={resetting}
+            style={{ padding: "8px 16px", border: "1px solid #f59e0b", borderRadius: 6, background: "white", color: "#92400e", cursor: "pointer", fontSize: 14, fontWeight: 500, opacity: resetting ? 0.5 : 1 }}>
+            {resetting ? "Resetting..." : "Reset & Accrue for This Month"}
+          </button>
+        </div>
+
+        {/* Transaction history */}
+        <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#374151", marginBottom: 8 }}>Recent Transactions</div>
+          {loadingHistory ? (
+            <div style={{ fontSize: 13, color: "#9ca3af" }}>Loading...</div>
+          ) : history.length === 0 ? (
+            <div style={{ fontSize: 13, color: "#9ca3af" }}>No transactions yet.</div>
+          ) : (
+            <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ color: "#6b7280", textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
+                  <th style={{ padding: "4px 6px", fontWeight: 500 }}>Date</th>
+                  <th style={{ padding: "4px 6px", fontWeight: 500, textAlign: "right" }}>Change</th>
+                  <th style={{ padding: "4px 6px", fontWeight: 500 }}>Reason</th>
+                  <th style={{ padding: "4px 6px", fontWeight: 500 }}>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((tx) => (
+                  <tr key={tx.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "4px 6px", color: "#6b7280" }}>
+                      {dayjs(tx.created_at).format("MMM D, HH:mm")}
+                    </td>
+                    <td style={{ padding: "4px 6px", textAlign: "right", fontWeight: 600, color: tx.delta >= 0 ? "#059669" : "#DC2626" }}>
+                      {tx.delta >= 0 ? "+" : ""}{Math.round(tx.delta).toLocaleString()}
+                    </td>
+                    <td style={{ padding: "4px 6px", color: "#374151" }}>
+                      {tx.reason.replace("_", " ")}
+                    </td>
+                    <td style={{ padding: "4px 6px", color: "#9ca3af", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {tx.note || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
