@@ -226,7 +226,7 @@ export default function BookingsPage() {
     const fromMins = timeToMinutes(timeFrom);
     const toMins = timeToMinutes(timeTo);
     if (toMins <= fromMins) return "End time must be after start time";
-    if (toMins - fromMins < 30) return "Minimum booking is 30 minutes";
+    if (toMins - fromMins < 5) return "Minimum booking is 5 minutes";
     return null;
   }, [timeFrom, timeTo]);
 
@@ -627,6 +627,18 @@ export default function BookingsPage() {
               )}
             </div>
 
+            {/* Dual range slider */}
+            <DualRangeSlider
+              startMin={timeToMinutes(timeFrom) - FIRST_HOUR * 60}
+              endMin={timeToMinutes(timeTo) - FIRST_HOUR * 60}
+              onStartChange={(v) => setTimeFrom(hhmm(v + FIRST_HOUR * 60))}
+              onEndChange={(v) => setTimeTo(hhmm(Math.min(v + FIRST_HOUR * 60, LAST_HOUR * 60)))}
+              bookedIntervals={bookedIntervals.map((iv) => ({
+                start: iv.start - FIRST_HOUR * 60,
+                end: iv.end - FIRST_HOUR * 60,
+              }))}
+            />
+
             {validationError && (
               <div className="text-sm text-red-700 font-medium">{validationError}</div>
             )}
@@ -799,6 +811,89 @@ export default function BookingsPage() {
             </ul>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Dual range slider ─────────────────────────────────────────────────────
+
+function DualRangeSlider({
+  startMin,
+  endMin,
+  onStartChange,
+  onEndChange,
+  bookedIntervals,
+}: {
+  startMin: number; // 0..720 (minutes from 08:00)
+  endMin: number;
+  onStartChange: (v: number) => void;
+  onEndChange: (v: number) => void;
+  bookedIntervals: { start: number; end: number }[];
+}) {
+  const MAX = 720;
+  const pct = (v: number) => (v / MAX) * 100;
+
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-[10px] text-gray-500">
+        <span>{hhmm(startMin + FIRST_HOUR * 60)}</span>
+        <span>{hhmm(endMin + FIRST_HOUR * 60)}</span>
+      </div>
+      <div className="relative h-6">
+        {/* Track background */}
+        <div className="absolute inset-x-0 top-2 h-2 rounded bg-gray-200" />
+
+        {/* Booked intervals */}
+        {bookedIntervals.map((iv, i) => (
+          <div
+            key={i}
+            className="absolute top-2 h-2 bg-red-300 rounded"
+            style={{ left: `${pct(iv.start)}%`, width: `${pct(iv.end) - pct(iv.start)}%` }}
+          />
+        ))}
+
+        {/* Selected range */}
+        {endMin > startMin && (
+          <div
+            className="absolute top-2 h-2 bg-blue-400 rounded"
+            style={{ left: `${pct(startMin)}%`, width: `${pct(endMin) - pct(startMin)}%` }}
+          />
+        )}
+
+        {/* Start handle */}
+        <input
+          type="range"
+          min={0}
+          max={MAX}
+          step={5}
+          value={startMin}
+          onChange={(e) => {
+            const v = +e.target.value;
+            if (v < endMin) onStartChange(v);
+          }}
+          className="absolute inset-x-0 top-0 h-6 w-full appearance-none bg-transparent pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cbc-blue [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-cbc-blue [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
+        />
+
+        {/* End handle */}
+        <input
+          type="range"
+          min={0}
+          max={MAX}
+          step={5}
+          value={endMin}
+          onChange={(e) => {
+            const v = +e.target.value;
+            if (v > startMin) onEndChange(v);
+          }}
+          className="absolute inset-x-0 top-0 h-6 w-full appearance-none bg-transparent pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-cbc-bright-blue [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-cbc-bright-blue [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
+        />
+      </div>
+      <div className="flex justify-between text-[9px] text-gray-400">
+        <span>08:00</span>
+        <span>12:00</span>
+        <span>16:00</span>
+        <span>20:00</span>
       </div>
     </div>
   );
