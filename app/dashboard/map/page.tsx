@@ -199,8 +199,13 @@ export default function MapPage() {
 
   function handleZoneSelect(zone: Zone) {
     setSelectedZoneId(zone.id);
-    // If zone already has a resource, open re-assign modal
     if (zone.resource_id != null) {
+      // Zone has a resource → open re-assign modal
+      setReassignZone(zone);
+      setZoneModalOpen(true);
+    } else {
+      // Zone is unmapped → open link modal (same as drawing a new zone,
+      // but targeting this existing zone instead of pending points)
       setReassignZone(zone);
       setZoneModalOpen(true);
     }

@@ -224,9 +224,10 @@ export default function ResourcesPage() {
         </div>
       )}
 
-      {/* Detail panel */}
+      {/* Detail panel — key forces fresh state when switching resources */}
       {selected && (
         <ResourceDetail
+          key={selected.id}
           resource={selected}
           floor={floors.find((f) => f.id === selected.floor_id) ?? null}
           plans={plans}
@@ -234,7 +235,6 @@ export default function ResourcesPage() {
           onClose={() => setSelected(null)}
           onSaved={async () => {
             await loadResources();
-            // Refresh selected from the new list
             const fresh = await api.get<Resource>(`/resources/${selected.id}`);
             setSelected(fresh.data);
           }}
