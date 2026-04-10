@@ -65,6 +65,10 @@ export interface Resource {
   rate_per_hour: number | null;
   is_standalone_bookable: boolean;
 
+  // booking policy
+  min_advance_minutes: number;
+  resident_discount_pct: number;
+
   zoho_contract_id: string | null;
   created_at?: string | null;
 }
@@ -114,4 +118,5 @@ export interface Booking {
   payment_type: BookingPaymentType;
   coins_charged: number;
   money_charged: number;
+  money_charged_uzs: number;
 }

@@ -187,6 +187,11 @@ export default function ResourcesPage() {
                 <div className="text-sm text-gray-700 mt-2">
                   {formatRate(r)}
                 </div>
+                {r.resident_discount_pct > 0 && (
+                  <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-800 font-semibold">
+                    -{r.resident_discount_pct}% resident
+                  </span>
+                )}
               </button>
             );
           })}
@@ -256,6 +261,8 @@ function ResourceDetail({
   const [capacity, setCapacity] = useState(String(resource.capacity ?? 0));
   const [coinsHr, setCoinsHr] = useState(String(resource.rate_coins_per_hour ?? 0));
   const [moneyHr, setMoneyHr] = useState(String(resource.rate_money_per_hour ?? 0));
+  const [minAdvance, setMinAdvance] = useState(String(resource.min_advance_minutes ?? 0));
+  const [discountPct, setDiscountPct] = useState(String(resource.resident_discount_pct ?? 0));
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -268,6 +275,8 @@ function ResourceDetail({
     setCapacity(String(resource.capacity ?? 0));
     setCoinsHr(String(resource.rate_coins_per_hour ?? 0));
     setMoneyHr(String(resource.rate_money_per_hour ?? 0));
+    setMinAdvance(String(resource.min_advance_minutes ?? 0));
+    setDiscountPct(String(resource.resident_discount_pct ?? 0));
     setEditing(false);
   }, [resource.id]);
 
@@ -290,6 +299,8 @@ function ResourceDetail({
         patch.rate_coins_per_hour = parseFloat(coinsHr) || 0;
         patch.rate_money_per_hour = parseFloat(moneyHr) || 0;
       }
+      patch.min_advance_minutes = parseInt(minAdvance, 10) || 0;
+      patch.resident_discount_pct = parseInt(discountPct, 10) || 0;
       await api.patch(`/resources/${resource.id}`, patch);
       await onSaved();
       setEditing(false);
@@ -509,6 +520,25 @@ function ResourceDetail({
                   </div>
                 </div>
               )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+                    Advance booking (min)
+                  </label>
+                  <input type="number" min="0" step="5" value={minAdvance}
+                    onChange={(e) => setMinAdvance(e.target.value)}
+                    className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+                    Resident discount %
+                  </label>
+                  <input type="number" min="0" max="100" value={discountPct}
+                    onChange={(e) => setDiscountPct(e.target.value)}
+                    className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
+                </div>
+              </div>
             </form>
           )}
         </div>

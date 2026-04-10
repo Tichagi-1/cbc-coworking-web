@@ -13,25 +13,41 @@ import type {
   UserRole,
 } from "@/lib/types";
 
-const SLOT_COUNT = 24; // 08:00..20:00 in 30-min blocks (last slot is 19:30–20:00)
 const FIRST_HOUR = 8;
+const LAST_HOUR = 20;
+const UZS_RATE = 12800;
 
-function slotIndexToTime(i: number): string {
-  const minutes = FIRST_HOUR * 60 + i * 30;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
+/** Round minutes UP to next 5-min boundary */
+function roundUp5(m: number): number {
+  return Math.ceil(m / 5) * 5;
+}
+
+/** Return "HH:MM" for an hour+minute value */
+function hhmm(totalMinutes: number): string {
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-function buildIso(date: string, slotIndex: number): string {
-  // date is YYYY-MM-DD; produce a naive ISO string the backend stores as-is
-  const minutes = FIRST_HOUR * 60 + slotIndex * 30;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${date}T${String(h).padStart(2, "0")}:${String(m).padStart(
-    2,
-    "0"
-  )}:00`;
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function defaultFrom(): string {
+  const now = dayjs();
+  let mins = now.hour() * 60 + now.minute();
+  mins = roundUp5(mins);
+  if (mins < FIRST_HOUR * 60) mins = FIRST_HOUR * 60;
+  if (mins >= LAST_HOUR * 60) mins = FIRST_HOUR * 60; // wrap to start
+  return hhmm(mins);
+}
+
+function defaultTo(from: string): string {
+  const fromMins = timeToMinutes(from);
+  let toMins = fromMins + 60;
+  if (toMins > LAST_HOUR * 60) toMins = LAST_HOUR * 60;
+  return hhmm(toMins);
 }
 
 export default function BookingsPage() {
@@ -42,23 +58,23 @@ export default function BookingsPage() {
   const isAdmin = role === "admin" || role === "manager";
 
   // ── Data ────────────────────────────────────────────────────────────────
-  // "Rooms" are now Resource rows where resource_type === 'meeting_room'.
   const [rooms, setRooms] = useState<Resource[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
 
   const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [allTenants, setAllTenants] = useState<Tenant[]>([]); // admin only
+  const [allTenants, setAllTenants] = useState<Tenant[]>([]);
   const [date, setDate] = useState(dayjs().format("YYYY-MM-DD"));
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [myBookings, setMyBookings] = useState<Booking[]>([]);
 
-  // Slot selection (start/end indices, both inclusive)
-  const [selStart, setSelStart] = useState<number | null>(null);
-  const [selEnd, setSelEnd] = useState<number | null>(null);
+  // Time picker state
+  const [timeFrom, setTimeFrom] = useState(defaultFrom);
+  const [timeTo, setTimeTo] = useState(() => defaultTo(defaultFrom()));
 
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [leadTimeWarning, setLeadTimeWarning] = useState<string | null>(null);
 
   const selectedRoom = useMemo(
     () => rooms.find((r) => r.id === selectedRoomId) ?? null,
@@ -81,14 +97,12 @@ export default function BookingsPage() {
       .catch(() => setTenant(null));
   }, []);
 
-  // Admins also fetch the full tenant list so they can pick whom to book for
   useEffect(() => {
     if (!isAdmin) return;
     api
       .get<Tenant[]>("/tenants/")
       .then((res) => {
         setAllTenants(res.data);
-        // If admin has no own tenant, default to the first one in the list
         if (!tenant && res.data.length > 0) setTenant(res.data[0]);
       })
       .catch(() => undefined);
@@ -107,13 +121,11 @@ export default function BookingsPage() {
       )
       .then((res) => {
         setSlots(res.data);
-        setSelStart(null);
-        setSelEnd(null);
       })
       .catch((e) => setError(e?.message || "Failed to load availability"));
   }, [selectedRoomId, date]);
 
-  // Fetch my bookings (current tenant)
+  // Fetch my bookings
   const refreshMyBookings = useCallback(async () => {
     if (!tenant) {
       setMyBookings([]);
@@ -123,13 +135,12 @@ export default function BookingsPage() {
       const res = await api.get<Booking[]>("/bookings", {
         params: { tenant_id: tenant.id },
       });
-      void selectedRoomId; // referenced below for cancel-refresh dependency
-      // Keep only upcoming
       const now = dayjs();
       const upcoming = res.data
         .filter((b) => dayjs(b.end_time).isAfter(now))
-        .sort((a, b) =>
-          dayjs(a.start_time).valueOf() - dayjs(b.start_time).valueOf()
+        .sort(
+          (a, b) =>
+            dayjs(a.start_time).valueOf() - dayjs(b.start_time).valueOf()
         );
       setMyBookings(upcoming);
     } catch {
@@ -141,83 +152,165 @@ export default function BookingsPage() {
     refreshMyBookings();
   }, [refreshMyBookings]);
 
-  // ── Selection logic ─────────────────────────────────────────────────────
-  // selEnd is EXCLUSIVE — booking runs from slot[selStart] to the START
-  // of slot[selEnd]. Clicking 08:00 then 12:00 books 08:00–12:00 (4 hrs).
-  function handleSlotClick(i: number) {
-    // Start new selection or reset if both are set
-    if (selStart == null || (selStart != null && selEnd != null)) {
-      if (!slots[i]?.available) return;
-      setSelStart(i);
-      setSelEnd(null);
+  // ── Lead-time auto-adjust ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!selectedRoom) {
+      setLeadTimeWarning(null);
       return;
     }
-    // Second click at or before start → restart at this slot
-    if (i <= selStart) {
-      if (!slots[i]?.available) return;
-      setSelStart(i);
-      setSelEnd(null);
+    const advMin = selectedRoom.min_advance_minutes || 0;
+    if (advMin <= 0) {
+      setLeadTimeWarning(null);
       return;
     }
-    // Second click after start → set as exclusive end.
-    // Verify all slots from selStart to i-1 (the ones actually booked)
-    // are available. The slot at `i` itself isn't part of the booking.
-    for (let k = selStart; k < i; k++) {
-      if (!slots[k].available) {
-        // Truncate at first unavailable slot
-        setSelEnd(k > selStart ? k : selStart + 1);
+    const now = dayjs();
+    const startDt = dayjs(`${date}T${timeFrom}:00`);
+    const earliest = now.add(advMin, "minute");
+    if (startDt.isBefore(earliest)) {
+      // Auto-adjust
+      let newMins = roundUp5(earliest.hour() * 60 + earliest.minute());
+      if (newMins > LAST_HOUR * 60 - 30) {
+        setLeadTimeWarning(
+          `This room requires ${advMin} min advance booking. No available start time today.`
+        );
         return;
       }
+      if (newMins < FIRST_HOUR * 60) newMins = FIRST_HOUR * 60;
+      const newFrom = hhmm(newMins);
+      setTimeFrom(newFrom);
+      // Adjust "to" if needed
+      const toMins = timeToMinutes(timeTo);
+      if (toMins <= newMins + 30) {
+        const newTo = hhmm(Math.min(newMins + 60, LAST_HOUR * 60));
+        setTimeTo(newTo);
+      }
+      setLeadTimeWarning(
+        `Adjusted to ${newFrom} (${advMin} min advance required)`
+      );
+    } else {
+      setLeadTimeWarning(null);
     }
-    setSelEnd(i);
-  }
+    // Only run when room/date changes, not on every timeFrom change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRoom?.id, date]);
 
-  // ── Cost calculation ────────────────────────────────────────────────────
+  // ── Overlap check ──────────────────────────────────────────────────────
+  const bookedIntervals = useMemo(() => {
+    return slots
+      .filter((s) => !s.available)
+      .map((s) => {
+        const start = timeToMinutes(s.time);
+        return { start, end: start + 30 };
+      });
+  }, [slots]);
+
+  const overlapError = useMemo(() => {
+    const fromMins = timeToMinutes(timeFrom);
+    const toMins = timeToMinutes(timeTo);
+    for (const iv of bookedIntervals) {
+      if (fromMins < iv.end && toMins > iv.start) {
+        return `Overlaps with existing booking at ${hhmm(iv.start)}-${hhmm(iv.end)}`;
+      }
+    }
+    return null;
+  }, [timeFrom, timeTo, bookedIntervals]);
+
+  // ── Validation ─────────────────────────────────────────────────────────
+  const validationError = useMemo(() => {
+    const fromMins = timeToMinutes(timeFrom);
+    const toMins = timeToMinutes(timeTo);
+    if (toMins <= fromMins) return "End time must be after start time";
+    if (toMins - fromMins < 30) return "Minimum booking is 30 minutes";
+    return null;
+  }, [timeFrom, timeTo]);
+
+  // ── Cost calculation ───────────────────────────────────────────────────
   const cost = useMemo(() => {
-    if (!selectedRoom || selStart == null) return null;
+    if (!selectedRoom) return null;
+    const fromMins = timeToMinutes(timeFrom);
+    const toMins = timeToMinutes(timeTo);
+    if (toMins <= fromMins) return null;
+
+    const hours = (toMins - fromMins) / 60;
     const coinsRate = selectedRoom.rate_coins_per_hour ?? 0;
     const moneyRate = selectedRoom.rate_money_per_hour ?? 0;
-    // selEnd is exclusive; if not set, default to "one slot" (selStart + 1)
-    const endIdx = selEnd ?? selStart + 1;
-    const hours = (endIdx - selStart) * 0.5;
+    const discountPct = selectedRoom.resident_discount_pct || 0;
+    const isResident = tenant?.is_resident ?? false;
+    const discountMult = discountPct > 0 && isResident ? 1 - discountPct / 100 : 1;
+    const effectiveMoneyRate = moneyRate * discountMult;
+
     const coinsNeeded = hours * coinsRate;
 
     if (!tenant) {
-      return { hours, coinsNeeded, free: false, coinsOwed: 0, moneyOwed: 0 };
+      const moneyOwed = Math.round(hours * effectiveMoneyRate * 100) / 100;
+      const uzsOwed = Math.round(moneyOwed * UZS_RATE);
+      return {
+        hours,
+        coinsNeeded,
+        free: false,
+        coinsOwed: 0,
+        moneyOwed,
+        uzsOwed,
+        discountPct: isResident ? discountPct : 0,
+      };
     }
 
-    if (tenant.is_resident) {
+    if (isResident) {
       if (tenant.coin_balance >= coinsNeeded) {
-        return { hours, coinsNeeded, free: true, coinsOwed: 0, moneyOwed: 0 };
+        return {
+          hours,
+          coinsNeeded,
+          free: true,
+          coinsOwed: 0,
+          moneyOwed: 0,
+          uzsOwed: 0,
+          discountPct,
+        };
       }
       const coinsOwed = coinsNeeded - tenant.coin_balance;
-      const ratio = coinsRate > 0 ? moneyRate / coinsRate : 0;
+      const ratio = coinsRate > 0 ? effectiveMoneyRate / coinsRate : 0;
       const moneyOwed = Math.round(coinsOwed * ratio * 100) / 100;
-      return { hours, coinsNeeded, free: false, coinsOwed, moneyOwed };
+      const uzsOwed = Math.round(moneyOwed * UZS_RATE);
+      return {
+        hours,
+        coinsNeeded,
+        free: false,
+        coinsOwed,
+        moneyOwed,
+        uzsOwed,
+        discountPct,
+      };
     }
 
-    // Non-resident: pure cash
-    const moneyOwed = Math.round(hours * moneyRate * 100) / 100;
-    return { hours, coinsNeeded, free: false, coinsOwed: 0, moneyOwed };
-  }, [selectedRoom, selStart, selEnd, tenant]);
+    const moneyOwed = Math.round(hours * effectiveMoneyRate * 100) / 100;
+    const uzsOwed = Math.round(moneyOwed * UZS_RATE);
+    return {
+      hours,
+      coinsNeeded,
+      free: false,
+      coinsOwed: 0,
+      moneyOwed,
+      uzsOwed,
+      discountPct: 0,
+    };
+  }, [selectedRoom, timeFrom, timeTo, tenant]);
 
   // ── Book ────────────────────────────────────────────────────────────────
   async function handleBook() {
-    if (!selectedRoom || !tenant || selStart == null) return;
+    if (!selectedRoom || !tenant) return;
+    if (validationError || overlapError) return;
     setSubmitting(true);
     setError(null);
     try {
-      // selEnd is exclusive — endIdx IS the end time's slot
-      const endIdx = selEnd ?? selStart + 1;
-      const start_time = buildIso(date, selStart);
-      const end_time = buildIso(date, endIdx);
+      const start_time = `${date}T${timeFrom}:00`;
+      const end_time = `${date}T${timeTo}:00`;
       const res = await api.post<Booking>("/bookings", {
         resource_id: selectedRoom.id,
         tenant_id: tenant.id,
         start_time,
         end_time,
       });
-      // Refresh: availability, tenant balance, my bookings
+      // Refresh
       const [avRes, meRes] = await Promise.all([
         api.get<AvailabilitySlot[]>(
           `/meeting-rooms/${selectedRoom.id}/availability`,
@@ -229,11 +322,8 @@ export default function BookingsPage() {
           .catch(() => null),
       ]);
       setSlots(avRes.data);
-      setSelStart(null);
-      setSelEnd(null);
       if (meRes) setTenant(meRes);
       else if (isAdmin) {
-        // refresh tenant in admin list
         const tlist = await api.get<Tenant[]>("/tenants/");
         const updated = tlist.data.find((t) => t.id === tenant.id) ?? tenant;
         setAllTenants(tlist.data);
@@ -259,7 +349,6 @@ export default function BookingsPage() {
   async function handleCancel(bookingId: number) {
     try {
       await api.delete(`/bookings/${bookingId}`);
-      // Refetch bookings + balance + availability
       await refreshMyBookings();
       const meRes = await api
         .get<Tenant | null>("/tenants/me")
@@ -280,10 +369,41 @@ export default function BookingsPage() {
     }
   }
 
+  // ── Timeline bar helpers ───────────────────────────────────────────────
+  const TOTAL_MINUTES = (LAST_HOUR - FIRST_HOUR) * 60; // 720
+
+  function minutesToPct(mins: number): number {
+    return ((mins - FIRST_HOUR * 60) / TOTAL_MINUTES) * 100;
+  }
+
+  const timelineSegments = useMemo(() => {
+    // Build segments: available (green), booked (red), selected (blue)
+    const fromMins = timeToMinutes(timeFrom);
+    const toMins = timeToMinutes(timeTo);
+    const selValid = toMins > fromMins && !validationError;
+
+    const segments: { start: number; end: number; type: "booked" | "selected" }[] = [];
+
+    // Booked segments from slots
+    for (const s of slots) {
+      if (!s.available) {
+        const sm = timeToMinutes(s.time);
+        segments.push({ start: sm, end: sm + 30, type: "booked" });
+      }
+    }
+
+    // Selected segment
+    if (selValid) {
+      segments.push({ start: fromMins, end: toMins, type: "selected" });
+    }
+
+    return segments;
+  }, [slots, timeFrom, timeTo, validationError]);
+
   // ── Render ──────────────────────────────────────────────────────────────
   return (
     <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* LEFT — room list */}
+      {/* LEFT - room list */}
       <div className="lg:col-span-1 space-y-3">
         <h2 className="text-xs uppercase tracking-wide text-gray-500 font-semibold">
           Meeting rooms
@@ -305,13 +425,16 @@ export default function BookingsPage() {
             >
               <div className="flex items-baseline justify-between">
                 <div className="font-semibold text-gray-900">{r.name}</div>
-                <div className="text-xs text-gray-500">
-                  {r.capacity} seats
-                </div>
+                <div className="text-xs text-gray-500">{r.capacity} seats</div>
               </div>
               <div className="text-sm text-gray-600 mt-1">
-                💰 {r.rate_coins_per_hour ?? 0}/hr · ${r.rate_money_per_hour ?? 0}/hr
+                {r.rate_coins_per_hour ?? 0}/hr coins &middot; ${r.rate_money_per_hour ?? 0}/hr
               </div>
+              {r.resident_discount_pct > 0 && (
+                <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-800 font-semibold">
+                  -{r.resident_discount_pct}% resident
+                </span>
+              )}
               {r.amenities && r.amenities.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
                   {r.amenities.map((a) => (
@@ -329,7 +452,7 @@ export default function BookingsPage() {
         })}
       </div>
 
-      {/* RIGHT — booking interface */}
+      {/* RIGHT - booking interface */}
       <div className="lg:col-span-2 space-y-4">
         <div className="flex flex-wrap items-end gap-3">
           <div>
@@ -368,7 +491,7 @@ export default function BookingsPage() {
 
           <div className="ml-auto inline-flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-full px-3 py-1.5">
             <span className="text-yellow-700 font-semibold text-sm">
-              💰 {tenant ? `${tenant.coin_balance} coins` : "no tenant"}
+              {tenant ? `${tenant.coin_balance} coins` : "no tenant"}
             </span>
           </div>
         </div>
@@ -380,61 +503,132 @@ export default function BookingsPage() {
               onClick={() => setError(null)}
               className="text-red-400 hover:text-red-700 ml-4"
             >
-              ×
+              x
             </button>
           </div>
         )}
 
         {toast && (
           <div className="text-sm text-green-800 bg-green-50 border border-green-200 rounded-md p-3">
-            ✓ {toast}
+            {toast}
           </div>
         )}
 
-        {/* Timeline */}
+        {leadTimeWarning && (
+          <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-3">
+            {leadTimeWarning}
+          </div>
+        )}
+
+        {/* Booking panel */}
         {selectedRoom ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <div className="text-sm font-semibold text-gray-900 mb-3">
-              {selectedRoom.name} · {dayjs(date).format("dddd, MMM D")}
+          <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
+            <div className="text-sm font-semibold text-gray-900">
+              {selectedRoom.name} &middot; {dayjs(date).format("dddd, MMM D")}
             </div>
 
-            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-              {slots.map((slot, i) => {
-                const isSelected =
-                  selStart != null &&
-                  i >= selStart &&
-                  i < (selEnd ?? selStart + 1);
-                let cls = "border text-xs px-2 py-2 rounded transition ";
-                if (isSelected) {
-                  cls +=
-                    "bg-cbc-blue text-white border-cbc-blue cursor-pointer";
-                } else if (slot.available) {
-                  cls +=
-                    "bg-green-50 text-green-800 border-green-200 hover:border-green-500 cursor-pointer";
-                } else {
-                  cls +=
-                    "bg-red-50 text-red-700 border-red-200 cursor-not-allowed opacity-70";
-                }
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    disabled={!slot.available}
-                    onClick={() => handleSlotClick(i)}
-                    className={cls}
-                  >
-                    {slot.time}
-                  </button>
-                );
-              })}
+            {/* Time pickers */}
+            <div className="flex flex-wrap items-end gap-4">
+              <div>
+                <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+                  From
+                </label>
+                <input
+                  type="time"
+                  step={300}
+                  min="08:00"
+                  max="20:00"
+                  value={timeFrom}
+                  onChange={(e) => setTimeFrom(e.target.value)}
+                  className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+                  To
+                </label>
+                <input
+                  type="time"
+                  step={300}
+                  min="08:00"
+                  max="20:00"
+                  value={timeTo}
+                  onChange={(e) => setTimeTo(e.target.value)}
+                  className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
+                />
+              </div>
+              {cost && (
+                <div className="text-sm text-gray-600">
+                  {cost.hours.toFixed(1)} hr
+                  {cost.hours !== 1 ? "s" : ""}
+                </div>
+              )}
+            </div>
+
+            {validationError && (
+              <div className="text-sm text-red-700 font-medium">{validationError}</div>
+            )}
+            {overlapError && (
+              <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-2 font-medium">
+                {overlapError}
+              </div>
+            )}
+
+            {/* Timeline bar */}
+            <div>
+              <div className="text-xs text-gray-500 mb-1">08:00 - 20:00 timeline</div>
+              <div className="relative h-8 bg-green-100 rounded-md overflow-hidden border border-gray-200">
+                {timelineSegments.map((seg, i) => {
+                  const left = minutesToPct(seg.start);
+                  const width = minutesToPct(seg.end) - left;
+                  const color =
+                    seg.type === "booked"
+                      ? "bg-red-400"
+                      : "bg-blue-500";
+                  return (
+                    <div
+                      key={`${seg.type}-${i}`}
+                      className={`absolute top-0 bottom-0 ${color}`}
+                      style={{ left: `${left}%`, width: `${width}%` }}
+                    />
+                  );
+                })}
+                {/* Hour markers */}
+                {Array.from({ length: LAST_HOUR - FIRST_HOUR + 1 }, (_, i) => {
+                  const hr = FIRST_HOUR + i;
+                  const pct = minutesToPct(hr * 60);
+                  return (
+                    <div
+                      key={hr}
+                      className="absolute top-0 bottom-0 border-l border-gray-300/50"
+                      style={{ left: `${pct}%` }}
+                    >
+                      <span className="absolute -top-4 text-[9px] text-gray-400 -translate-x-1/2">
+                        {hr}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex gap-4 mt-1 text-[10px] text-gray-500">
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-3 h-2 rounded bg-green-100 border border-gray-200" /> available
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-3 h-2 rounded bg-red-400" /> booked
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-3 h-2 rounded bg-blue-500" /> selected
+                </span>
+              </div>
             </div>
 
             {/* Cost preview */}
             {cost && (
-              <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-md text-sm">
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-md text-sm">
                 <span className="font-medium text-gray-900">
-                  {cost.hours}{" "}
-                  {cost.hours === 1 ? "hour" : "hours"}: {cost.coinsNeeded}{" "}
+                  {cost.hours.toFixed(1)}{" "}
+                  {cost.hours === 1 ? "hour" : "hours"}: {cost.coinsNeeded.toFixed(1)}{" "}
                   coins
                 </span>
                 {tenant && (
@@ -443,31 +637,40 @@ export default function BookingsPage() {
                     (you have {tenant.coin_balance})
                   </span>
                 )}{" "}
-                →{" "}
+                {" -> "}
                 {cost.free ? (
                   <span className="font-bold text-green-700">FREE</span>
                 ) : (
                   <span className="font-bold text-gray-900">
-                    {cost.coinsOwed > 0 && `${cost.coinsOwed} coins + `}
+                    {cost.coinsOwed > 0 && `${cost.coinsOwed.toFixed(1)} coins + `}
                     ${cost.moneyOwed.toFixed(2)}
+                    <span className="text-gray-500 font-normal ml-1">
+                      ({cost.uzsOwed.toLocaleString()}{"\u00A0"}sum)
+                    </span>
+                  </span>
+                )}
+                {cost.discountPct > 0 && (
+                  <span className="ml-2 text-green-700 font-semibold text-xs">
+                    -{cost.discountPct}% resident discount
                   </span>
                 )}
               </div>
             )}
 
-            <div className="mt-4 flex justify-end">
+            <div className="flex justify-end">
               <button
                 type="button"
                 disabled={
                   submitting ||
-                  selStart == null ||
                   !tenant ||
-                  rooms.length === 0
+                  rooms.length === 0 ||
+                  !!validationError ||
+                  !!overlapError
                 }
                 onClick={handleBook}
                 className="px-4 py-2 text-sm font-semibold text-white bg-cbc-blue hover:bg-cbc-bright-blue rounded-md disabled:opacity-50"
               >
-                {submitting ? "Booking…" : "Book Now"}
+                {submitting ? "Booking..." : "Book Now"}
               </button>
             </div>
           </div>
@@ -498,13 +701,19 @@ export default function BookingsPage() {
                         {room?.name ?? `Room #${b.resource_id ?? "?"}`}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {dayjs(b.start_time).format("MMM D, HH:mm")} –{" "}
+                        {dayjs(b.start_time).format("MMM D, HH:mm")} -{" "}
                         {dayjs(b.end_time).format("HH:mm")}
                         {b.coins_charged > 0 && (
-                          <span> · {b.coins_charged} coins</span>
+                          <span> &middot; {b.coins_charged} coins</span>
                         )}
                         {b.money_charged > 0 && (
-                          <span> · ${b.money_charged}</span>
+                          <span> &middot; ${b.money_charged}</span>
+                        )}
+                        {b.money_charged_uzs > 0 && (
+                          <span className="text-gray-400">
+                            {" "}
+                            ({b.money_charged_uzs.toLocaleString()}{"\u00A0"}sum)
+                          </span>
                         )}
                       </div>
                     </div>
