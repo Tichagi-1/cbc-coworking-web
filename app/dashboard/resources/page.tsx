@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Cookies from "js-cookie";
 
 import { api, ROLE_COOKIE } from "@/lib/api";
@@ -224,10 +224,9 @@ export default function ResourcesPage() {
         </div>
       )}
 
-      {/* Detail panel — key forces fresh state when switching resources */}
+      {/* Detail panel */}
       {selected && (
         <ResourceDetail
-          key={selected.id}
           resource={selected}
           floor={floors.find((f) => f.id === selected.floor_id) ?? null}
           plans={plans}
@@ -281,6 +280,7 @@ function ResourceDetail({
   onDeleted: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  const prevIdRef = useRef(resource.id);
   const [name, setName] = useState(resource.name);
   const [status, setStatus] = useState<UnitStatus>(resource.status);
   const [tenantName, setTenantName] = useState(resource.tenant_name ?? "");
@@ -302,6 +302,10 @@ function ResourceDetail({
     : null;
 
   useEffect(() => {
+    // Only reset form values (and editing) when switching to a DIFFERENT resource
+    const idChanged = resource.id !== prevIdRef.current;
+    prevIdRef.current = resource.id;
+
     setName(resource.name);
     setStatus(resource.status);
     setTenantName(resource.tenant_name ?? "");
@@ -314,8 +318,14 @@ function ResourceDetail({
     setMinAdvance(String(resource.min_advance_minutes ?? 0));
     setDiscountPct(String(resource.resident_discount_pct ?? 0));
     setPlanId(resource.plan_id ?? null);
-    setEditing(false);
-  }, [resource.id]);
+
+    // Only close the edit form when the user switches to a different resource.
+    // Do NOT reset editing when the same resource is refreshed after save —
+    // the save handler already sets editing=false explicitly.
+    if (idChanged) {
+      setEditing(false);
+    }
+  }, [resource.id, resource.name, resource.status, resource.tenant_name, resource.area_m2, resource.seats, resource.monthly_rate, resource.capacity, resource.rate_coins_per_hour, resource.rate_money_per_hour, resource.min_advance_minutes, resource.resident_discount_pct, resource.plan_id]);
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -471,7 +481,7 @@ function ResourceDetail({
               )}
             </>
           ) : (
-            <form id="resource-edit" onSubmit={save} className="space-y-3">
+            <form id="resource-edit" onSubmit={save} className="space-y-3" onMouseDown={(e) => e.stopPropagation()}>
               <div>
                 <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
                   Name
