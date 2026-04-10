@@ -8,7 +8,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/map", label: "Floor Map", icon: "▦" },
   { href: "/dashboard/resources", label: "Resources", icon: "🗂" },
   { href: "/dashboard/plans", label: "Plans", icon: "📋" },
-  { href: "/dashboard/bookings", label: "Bookings", icon: "📅" },
+  { href: "/dashboard/workspace", label: "Workspace", icon: "📅" },
   { href: "/dashboard/tenants", label: "Tenants", icon: "👥" },
   { href: "/dashboard/analytics", label: "Analytics", icon: "📊" },
 ];
