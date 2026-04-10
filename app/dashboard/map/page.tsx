@@ -378,6 +378,15 @@ export default function MapPage() {
       resourceCacheRef.current.set(fresh.id, fresh);
       setResources((prev) => prev.map((r) => (r.id === fresh.id ? fresh : r)));
       setSelectedResource(fresh);
+      // Immediately update zone labels in local state so the canvas
+      // re-renders with the new name before loadFloorData round-trips.
+      setSavedZones((prev) =>
+        prev.map((z) =>
+          z.resource_id === fresh.id
+            ? { ...z, label: fresh.name, status: fresh.status, resource_type: fresh.resource_type }
+            : z
+        )
+      );
       if (floorId != null) {
         await loadFloorData(floorId, mode, historyDate);
       }

@@ -249,12 +249,25 @@ function ResourceDetail({
   const [name, setName] = useState(resource.name);
   const [status, setStatus] = useState<UnitStatus>(resource.status);
   const [tenantName, setTenantName] = useState(resource.tenant_name ?? "");
+  // type-specific fields
+  const [areaM2, setAreaM2] = useState(String(resource.area_m2 ?? 0));
+  const [seats, setSeats] = useState(String(resource.seats ?? 1));
+  const [monthlyRate, setMonthlyRate] = useState(String(resource.monthly_rate ?? 0));
+  const [capacity, setCapacity] = useState(String(resource.capacity ?? 0));
+  const [coinsHr, setCoinsHr] = useState(String(resource.rate_coins_per_hour ?? 0));
+  const [moneyHr, setMoneyHr] = useState(String(resource.rate_money_per_hour ?? 0));
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     setName(resource.name);
     setStatus(resource.status);
     setTenantName(resource.tenant_name ?? "");
+    setAreaM2(String(resource.area_m2 ?? 0));
+    setSeats(String(resource.seats ?? 1));
+    setMonthlyRate(String(resource.monthly_rate ?? 0));
+    setCapacity(String(resource.capacity ?? 0));
+    setCoinsHr(String(resource.rate_coins_per_hour ?? 0));
+    setMoneyHr(String(resource.rate_money_per_hour ?? 0));
     setEditing(false);
   }, [resource.id]);
 
@@ -262,11 +275,22 @@ function ResourceDetail({
     e.preventDefault();
     setSubmitting(true);
     try {
-      await api.patch(`/resources/${resource.id}`, {
+      const patch: Record<string, unknown> = {
         name: name.trim(),
         status,
         tenant_name: tenantName.trim() || null,
-      });
+      };
+      const rt = resource.resource_type;
+      if (rt === "office" || rt === "hot_desk" || rt === "open_space") {
+        patch.area_m2 = parseFloat(areaM2) || 0;
+        patch.seats = parseInt(seats, 10) || 1;
+        patch.monthly_rate = parseFloat(monthlyRate) || 0;
+      } else if (rt === "meeting_room") {
+        patch.capacity = parseInt(capacity, 10) || 0;
+        patch.rate_coins_per_hour = parseFloat(coinsHr) || 0;
+        patch.rate_money_per_hour = parseFloat(moneyHr) || 0;
+      }
+      await api.patch(`/resources/${resource.id}`, patch);
       await onSaved();
       setEditing(false);
     } finally {
@@ -423,6 +447,66 @@ function ResourceDetail({
                     onChange={(e) => setTenantName(e.target.value)}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                   />
+                </div>
+              )}
+
+              {(resource.resource_type === "office" ||
+                resource.resource_type === "hot_desk" ||
+                resource.resource_type === "open_space") && (
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+                      Area m²
+                    </label>
+                    <input type="number" min="0" step="0.5" value={areaM2}
+                      onChange={(e) => setAreaM2(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+                      Seats
+                    </label>
+                    <input type="number" min="1" value={seats}
+                      onChange={(e) => setSeats(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+                      Rate
+                    </label>
+                    <input type="number" min="0" value={monthlyRate}
+                      onChange={(e) => setMonthlyRate(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
+                  </div>
+                </div>
+              )}
+
+              {resource.resource_type === "meeting_room" && (
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+                      Capacity
+                    </label>
+                    <input type="number" min="1" value={capacity}
+                      onChange={(e) => setCapacity(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+                      Coins/hr
+                    </label>
+                    <input type="number" min="0" value={coinsHr}
+                      onChange={(e) => setCoinsHr(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+                      $/hr
+                    </label>
+                    <input type="number" min="0" value={moneyHr}
+                      onChange={(e) => setMoneyHr(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
+                  </div>
                 </div>
               )}
             </form>

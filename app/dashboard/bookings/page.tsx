@@ -142,24 +142,30 @@ export default function BookingsPage() {
   }, [refreshMyBookings]);
 
   // ── Selection logic ─────────────────────────────────────────────────────
+  // selEnd is EXCLUSIVE — booking runs from slot[selStart] to the START
+  // of slot[selEnd]. Clicking 08:00 then 12:00 books 08:00–12:00 (4 hrs).
   function handleSlotClick(i: number) {
-    const slot = slots[i];
-    if (!slot || !slot.available) return;
+    // Start new selection or reset if both are set
     if (selStart == null || (selStart != null && selEnd != null)) {
+      if (!slots[i]?.available) return;
       setSelStart(i);
       setSelEnd(null);
       return;
     }
-    // selStart set, selEnd not yet
-    if (i < selStart) {
+    // Second click at or before start → restart at this slot
+    if (i <= selStart) {
+      if (!slots[i]?.available) return;
       setSelStart(i);
+      setSelEnd(null);
       return;
     }
-    // Make sure every slot in [selStart..i] is available
-    for (let k = selStart; k <= i; k++) {
+    // Second click after start → set as exclusive end.
+    // Verify all slots from selStart to i-1 (the ones actually booked)
+    // are available. The slot at `i` itself isn't part of the booking.
+    for (let k = selStart; k < i; k++) {
       if (!slots[k].available) {
-        // Truncate selection at the last contiguous available slot
-        setSelEnd(k - 1 >= selStart ? k - 1 : selStart);
+        // Truncate at first unavailable slot
+        setSelEnd(k > selStart ? k : selStart + 1);
         return;
       }
     }
@@ -171,9 +177,9 @@ export default function BookingsPage() {
     if (!selectedRoom || selStart == null) return null;
     const coinsRate = selectedRoom.rate_coins_per_hour ?? 0;
     const moneyRate = selectedRoom.rate_money_per_hour ?? 0;
-    const endIdx = selEnd ?? selStart;
-    const slotsCount = endIdx - selStart + 1;
-    const hours = slotsCount * 0.5;
+    // selEnd is exclusive; if not set, default to "one slot" (selStart + 1)
+    const endIdx = selEnd ?? selStart + 1;
+    const hours = (endIdx - selStart) * 0.5;
     const coinsNeeded = hours * coinsRate;
 
     if (!tenant) {
@@ -201,9 +207,10 @@ export default function BookingsPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const endIdx = selEnd ?? selStart;
+      // selEnd is exclusive — endIdx IS the end time's slot
+      const endIdx = selEnd ?? selStart + 1;
       const start_time = buildIso(date, selStart);
-      const end_time = buildIso(date, endIdx + 1); // +1 because slot is half-open at the end
+      const end_time = buildIso(date, endIdx);
       const res = await api.post<Booking>("/bookings", {
         resource_id: selectedRoom.id,
         tenant_id: tenant.id,
@@ -396,7 +403,7 @@ export default function BookingsPage() {
                 const isSelected =
                   selStart != null &&
                   i >= selStart &&
-                  i <= (selEnd ?? selStart);
+                  i < (selEnd ?? selStart + 1);
                 let cls = "border text-xs px-2 py-2 rounded transition ";
                 if (isSelected) {
                   cls +=
