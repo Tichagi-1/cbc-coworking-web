@@ -11,9 +11,14 @@ interface ZoneNameModalProps {
   /** Resources already linked elsewhere — shown but flagged. */
   excludeResourceIds?: number[];
   submitting?: boolean;
+  /** If set, the modal is in "re-assign" mode for an existing zone. */
+  currentResourceId?: number | null;
+  currentResourceName?: string | null;
   onClose: () => void;
   /** Called with the resource id (existing or freshly created) to link the zone to. */
   onLinked: (resourceId: number) => Promise<void> | void;
+  /** Called to unlink the zone (set resource_id to null). Only shown in re-assign mode. */
+  onUnlink?: () => void;
 }
 
 const TYPE_LABEL: Record<ResourceType, string> = {
@@ -30,9 +35,13 @@ export default function ZoneNameModal({
   floorId,
   excludeResourceIds = [],
   submitting = false,
+  currentResourceId = null,
+  currentResourceName = null,
   onClose,
   onLinked,
+  onUnlink,
 }: ZoneNameModalProps) {
+  const isReassign = currentResourceId != null;
   // tab: pick existing | create new
   const [tab, setTab] = useState<"pick" | "new">("pick");
   const [resources, setResources] = useState<Resource[]>([]);
@@ -115,7 +124,20 @@ export default function ZoneNameModal({
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-2xl w-full max-w-md p-6 space-y-4">
-        <h3 className="text-lg font-semibold text-gray-900">Link this zone</h3>
+        <h3 className="text-lg font-semibold text-gray-900">
+          {isReassign ? `Re-assign zone: ${currentResourceName}` : "Link this zone"}
+        </h3>
+
+        {isReassign && onUnlink && (
+          <button
+            type="button"
+            onClick={onUnlink}
+            disabled={submitting}
+            className="text-sm text-red-600 hover:underline disabled:opacity-50"
+          >
+            Unlink from resource (make unmapped)
+          </button>
+        )}
 
         {/* Tabs */}
         <div className="flex border-b border-gray-200">

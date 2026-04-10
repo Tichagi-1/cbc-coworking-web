@@ -76,6 +76,12 @@ export default function BookingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [leadTimeWarning, setLeadTimeWarning] = useState<string | null>(null);
 
+  // Inline booking edit state
+  const [editingBookingId, setEditingBookingId] = useState<number | null>(null);
+  const [editFrom, setEditFrom] = useState("");
+  const [editTo, setEditTo] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
   const selectedRoom = useMemo(
     () => rooms.find((r) => r.id === selectedRoomId) ?? null,
     [rooms, selectedRoomId]
@@ -379,6 +385,45 @@ export default function BookingsPage() {
     }
   }
 
+  // ── Inline booking edit ─────────────────────────────────────────────────
+  function startEditBooking(b: Booking) {
+    setEditingBookingId(b.id);
+    setEditFrom(dayjs(b.start_time).format("HH:mm"));
+    setEditTo(dayjs(b.end_time).format("HH:mm"));
+  }
+
+  async function saveEditBooking() {
+    if (editingBookingId == null) return;
+    setEditSaving(true);
+    try {
+      const booking = myBookings.find((b) => b.id === editingBookingId);
+      if (!booking) return;
+      const dateStr = dayjs(booking.start_time).format("YYYY-MM-DD");
+      await api.patch(`/bookings/${editingBookingId}`, {
+        start_time: `${dateStr}T${editFrom}:00`,
+        end_time: `${dateStr}T${editTo}:00`,
+      });
+      setEditingBookingId(null);
+      await refreshMyBookings();
+      if (selectedRoomId) {
+        const av = await api.get<AvailabilitySlot[]>(
+          `/meeting-rooms/${selectedRoomId}/availability`,
+          { params: { date } }
+        );
+        setSlots(av.data);
+      }
+      setToast("Booking updated");
+      setTimeout(() => setToast(null), 4000);
+    } catch (e: unknown) {
+      const detail =
+        (e as { response?: { data?: { detail?: string } } })?.response?.data
+          ?.detail || (e as Error)?.message;
+      setError(detail || "Failed to update booking");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   // ── Timeline bar helpers ───────────────────────────────────────────────
   const TOTAL_MINUTES = (LAST_HOUR - FIRST_HOUR) * 60; // 720
 
@@ -549,7 +594,14 @@ export default function BookingsPage() {
                   min="08:00"
                   max="20:00"
                   value={timeFrom}
-                  onChange={(e) => setTimeFrom(e.target.value)}
+                  onChange={(e) => {
+                    const nf = e.target.value;
+                    setTimeFrom(nf);
+                    // Auto-set To = From + 15 min, clamped to 20:00
+                    const fMins = timeToMinutes(nf);
+                    const tMins = Math.min(fMins + 15, LAST_HOUR * 60);
+                    setTimeTo(hhmm(tMins));
+                  }}
                   className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
                 />
               </div>
@@ -703,39 +755,44 @@ export default function BookingsPage() {
             <ul className="divide-y divide-gray-100">
               {myBookings.map((b) => {
                 const room = rooms.find((r) => r.id === b.resource_id);
+                const isEditing = editingBookingId === b.id;
                 return (
-                  <li
-                    key={b.id}
-                    className="py-2.5 flex items-center justify-between text-sm"
-                  >
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        {room?.name ?? `Room #${b.resource_id ?? "?"}`}
+                  <li key={b.id} className="py-2.5 text-sm">
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <div className="font-medium text-gray-900">
+                          {room?.name ?? `Room #${b.resource_id ?? "?"}`} — {dayjs(b.start_time).format("MMM D")}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input type="time" step={300} min="08:00" max="20:00" value={editFrom} onChange={(e) => setEditFrom(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-sm" />
+                          <span className="text-gray-400">to</span>
+                          <input type="time" step={300} min="08:00" max="20:00" value={editTo} onChange={(e) => setEditTo(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-sm" />
+                          <button type="button" onClick={saveEditBooking} disabled={editSaving} className="text-xs px-2.5 py-1 bg-cbc-blue text-white rounded disabled:opacity-50">{editSaving ? "..." : "Save"}</button>
+                          <button type="button" onClick={() => setEditingBookingId(null)} className="text-xs px-2.5 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">Cancel</button>
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-500">
-                        {dayjs(b.start_time).format("MMM D, HH:mm")} -{" "}
-                        {dayjs(b.end_time).format("HH:mm")}
-                        {b.coins_charged > 0 && (
-                          <span> &middot; {b.coins_charged} coins</span>
-                        )}
-                        {b.money_charged > 0 && (
-                          <span> &middot; ${b.money_charged}</span>
-                        )}
-                        {b.money_charged_uzs > 0 && (
-                          <span className="text-gray-400">
-                            {" "}
-                            ({b.money_charged_uzs.toLocaleString()}{"\u00A0"}sum)
-                          </span>
-                        )}
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-gray-900">
+                            {room?.name ?? `Room #${b.resource_id ?? "?"}`}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {dayjs(b.start_time).format("MMM D, HH:mm")} -{" "}
+                            {dayjs(b.end_time).format("HH:mm")}
+                            {b.coins_charged > 0 && <span> &middot; {b.coins_charged} coins</span>}
+                            {b.money_charged > 0 && <span> &middot; ${b.money_charged}</span>}
+                            {b.money_charged_uzs > 0 && (
+                              <span className="text-gray-400"> ({b.money_charged_uzs.toLocaleString()}{"\u00A0"}sum)</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <button type="button" onClick={() => startEditBooking(b)} className="text-xs px-2.5 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">Edit</button>
+                          <button type="button" onClick={() => handleCancel(b.id)} className="text-xs px-2.5 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">Cancel</button>
+                        </div>
                       </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCancel(b.id)}
-                      className="text-xs px-2.5 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
+                    )}
                   </li>
                 );
               })}

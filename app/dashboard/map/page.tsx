@@ -64,6 +64,9 @@ export default function MapPage() {
   const [zoneModalSubmitting, setZoneModalSubmitting] = useState(false);
   const pendingPolygonPointsRef = useRef<Point[] | null>(null);
 
+  // Re-assign mode: editing an existing zone's resource link
+  const [reassignZone, setReassignZone] = useState<Zone | null>(null);
+
   const [renamingFloorId, setRenamingFloorId] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renameSubmitting, setRenameSubmitting] = useState(false);
@@ -196,6 +199,11 @@ export default function MapPage() {
 
   function handleZoneSelect(zone: Zone) {
     setSelectedZoneId(zone.id);
+    // If zone already has a resource, open re-assign modal
+    if (zone.resource_id != null) {
+      setReassignZone(zone);
+      setZoneModalOpen(true);
+    }
   }
 
   // ── Add / rename / delete floor ─────────────────────────────────────────
@@ -325,6 +333,48 @@ export default function MapPage() {
 
   function handleZoneFormCancel() {
     pendingPolygonPointsRef.current = null;
+    setReassignZone(null);
+    setZoneModalOpen(false);
+  }
+
+  async function handleReassignLinked(resourceId: number) {
+    if (!reassignZone) return;
+    setZoneModalSubmitting(true);
+    try {
+      const fresh = await getResource(resourceId);
+      // Update the zone in savedZones with the new resource_id
+      setSavedZones((prev) =>
+        prev.map((z) =>
+          z.id === reassignZone.id
+            ? {
+                ...z,
+                resource_id: resourceId,
+                label: fresh?.name ?? z.label,
+                resource_type: fresh?.resource_type ?? z.resource_type,
+                status: fresh?.status ?? z.status,
+              }
+            : z
+        )
+      );
+      setReassignZone(null);
+      setZoneModalOpen(false);
+    } catch (e) {
+      setError((e as Error)?.message || "Failed to reassign zone");
+    } finally {
+      setZoneModalSubmitting(false);
+    }
+  }
+
+  function handleUnlinkZone() {
+    if (!reassignZone) return;
+    setSavedZones((prev) =>
+      prev.map((z) =>
+        z.id === reassignZone.id
+          ? { ...z, resource_id: null, label: null, resource_type: null, status: null }
+          : z
+      )
+    );
+    setReassignZone(null);
     setZoneModalOpen(false);
   }
 
@@ -744,8 +794,11 @@ export default function MapPage() {
           floorId={floorId}
           excludeResourceIds={linkedResourceIds}
           submitting={zoneModalSubmitting}
+          currentResourceId={reassignZone?.resource_id}
+          currentResourceName={reassignZone?.label}
           onClose={handleZoneFormCancel}
-          onLinked={handleZoneLinked}
+          onLinked={reassignZone ? handleReassignLinked : handleZoneLinked}
+          onUnlink={reassignZone ? handleUnlinkZone : undefined}
         />
       )}
 

@@ -361,7 +361,10 @@ function ResourceDetail({
   return (
     <>
       <div className="fixed inset-0 bg-black/30 z-30" onClick={onClose} />
-      <aside className="fixed top-0 right-0 h-full w-96 bg-white shadow-2xl border-l border-gray-200 z-40 flex flex-col">
+      <aside
+        className="fixed top-0 right-0 h-full w-96 bg-white shadow-2xl border-l border-gray-200 z-40 flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="p-5 border-b border-gray-200 flex items-start justify-between">
           <div className="min-w-0 flex-1 pr-4">
             <span
@@ -648,7 +651,10 @@ function ResourceDetail({
                   Delete
                 </button>
                 <button
-                  onClick={() => setEditing(true)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditing(true);
+                  }}
                   className="flex-1 rounded-md bg-cbc-blue hover:bg-cbc-bright-blue text-white font-medium py-2"
                 >
                   Edit
