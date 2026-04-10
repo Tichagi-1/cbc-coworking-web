@@ -6,6 +6,7 @@ import Cookies from "js-cookie";
 import { api, ROLE_COOKIE } from "@/lib/api";
 import type {
   Floor,
+  Plan,
   RatePeriod,
   Resource,
   ResourceType,
@@ -47,9 +48,24 @@ function formatRate(r: Resource): string {
   if (r.resource_type === "amenity") {
     return r.rate_per_hour ? `$${r.rate_per_hour} / hr` : "—";
   }
+  // Show effective_monthly_rate when plan is linked
+  if (r.effective_monthly_rate != null) {
+    return `${r.effective_monthly_rate.toLocaleString()} сум / month`;
+  }
   if (r.monthly_rate == null) return "—";
   const period = r.rate_period && r.rate_period !== "month" ? r.rate_period : "month";
   return `$${r.monthly_rate.toLocaleString()} / ${period}`;
+}
+
+function computePlanRate(plan: Plan, seats: number | null): number {
+  if (plan.billing_mode === "per_seat") {
+    return plan.base_rate_uzs * (seats ?? 1);
+  }
+  return plan.base_rate_uzs;
+}
+
+function formatUzs(value: number): string {
+  return value.toLocaleString() + " сум";
 }
 
 export default function ResourcesPage() {
@@ -61,6 +77,7 @@ export default function ResourcesPage() {
 
   const [resources, setResources] = useState<Resource[]>([]);
   const [floors, setFloors] = useState<Floor[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [activeTab, setActiveTab] = useState<"all" | ResourceType>("all");
   const [selected, setSelected] = useState<Resource | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -82,6 +99,10 @@ export default function ResourcesPage() {
     api
       .get<Floor[]>(`/buildings/${BUILDING_ID}/floors`)
       .then((res) => setFloors(res.data))
+      .catch(() => undefined);
+    api
+      .get<Plan[]>("/plans", { params: { building_id: BUILDING_ID } })
+      .then((res) => setPlans(res.data))
       .catch(() => undefined);
   }, []);
 
@@ -187,6 +208,11 @@ export default function ResourcesPage() {
                 <div className="text-sm text-gray-700 mt-2">
                   {formatRate(r)}
                 </div>
+                {r.plan && (
+                  <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-semibold">
+                    {r.plan.name}
+                  </span>
+                )}
                 {r.resident_discount_pct > 0 && (
                   <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-800 font-semibold">
                     -{r.resident_discount_pct}% resident
@@ -203,6 +229,7 @@ export default function ResourcesPage() {
         <ResourceDetail
           resource={selected}
           floor={floors.find((f) => f.id === selected.floor_id) ?? null}
+          plans={plans}
           isAdmin={isAdmin}
           onClose={() => setSelected(null)}
           onSaved={async () => {
@@ -222,6 +249,7 @@ export default function ResourcesPage() {
       {addOpen && (
         <AddResourceModal
           floors={floors}
+          plans={plans}
           onClose={() => setAddOpen(false)}
           onCreated={async () => {
             setAddOpen(false);
@@ -238,6 +266,7 @@ export default function ResourcesPage() {
 function ResourceDetail({
   resource,
   floor,
+  plans,
   isAdmin,
   onClose,
   onSaved,
@@ -245,6 +274,7 @@ function ResourceDetail({
 }: {
   resource: Resource;
   floor: Floor | null;
+  plans: Plan[];
   isAdmin: boolean;
   onClose: () => void;
   onSaved: () => Promise<void>;
@@ -263,7 +293,13 @@ function ResourceDetail({
   const [moneyHr, setMoneyHr] = useState(String(resource.rate_money_per_hour ?? 0));
   const [minAdvance, setMinAdvance] = useState(String(resource.min_advance_minutes ?? 0));
   const [discountPct, setDiscountPct] = useState(String(resource.resident_discount_pct ?? 0));
+  const [planId, setPlanId] = useState<number | null>(resource.plan_id ?? null);
   const [submitting, setSubmitting] = useState(false);
+
+  const selectedPlan = plans.find((p) => p.id === planId) ?? null;
+  const planRatePreview = selectedPlan
+    ? computePlanRate(selectedPlan, (resource.seats ?? parseInt(seats, 10)) || 1)
+    : null;
 
   useEffect(() => {
     setName(resource.name);
@@ -277,6 +313,7 @@ function ResourceDetail({
     setMoneyHr(String(resource.rate_money_per_hour ?? 0));
     setMinAdvance(String(resource.min_advance_minutes ?? 0));
     setDiscountPct(String(resource.resident_discount_pct ?? 0));
+    setPlanId(resource.plan_id ?? null);
     setEditing(false);
   }, [resource.id]);
 
@@ -301,6 +338,7 @@ function ResourceDetail({
       }
       patch.min_advance_minutes = parseInt(minAdvance, 10) || 0;
       patch.resident_discount_pct = parseInt(discountPct, 10) || 0;
+      patch.plan_id = planId;
       await api.patch(`/resources/${resource.id}`, patch);
       await onSaved();
       setEditing(false);
@@ -399,6 +437,16 @@ function ResourceDetail({
                 <dd className="text-gray-900 font-medium">
                   {formatRate(resource)}
                 </dd>
+                {resource.plan && (
+                  <>
+                    <dt className="text-gray-500">Plan</dt>
+                    <dd>
+                      <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-semibold">
+                        {resource.plan.name}
+                      </span>
+                    </dd>
+                  </>
+                )}
               </dl>
 
               {resource.amenities && resource.amenities.length > 0 && (
@@ -539,6 +587,32 @@ function ResourceDetail({
                     className="w-full rounded-md border border-gray-300 px-2 py-2 text-sm" />
                 </div>
               </div>
+
+              {/* Plan dropdown */}
+              <div>
+                <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+                  Tariff Plan
+                </label>
+                <select
+                  value={planId ?? ""}
+                  onChange={(e) => setPlanId(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
+                >
+                  <option value="">-- No plan (manual rate) --</option>
+                  {plans.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.billing_mode === "per_unit" ? "per unit" : "per seat"})
+                    </option>
+                  ))}
+                </select>
+                {selectedPlan && planRatePreview != null && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    {selectedPlan.billing_mode === "per_seat"
+                      ? `= ${formatUzs(selectedPlan.base_rate_uzs)} x ${(resource.seats ?? parseInt(seats, 10)) || 1} seats = ${formatUzs(planRatePreview)}/month`
+                      : `= ${formatUzs(planRatePreview)}/month`}
+                  </div>
+                )}
+              </div>
             </form>
           )}
         </div>
@@ -592,10 +666,12 @@ function ResourceDetail({
 
 function AddResourceModal({
   floors,
+  plans,
   onClose,
   onCreated,
 }: {
   floors: Floor[];
+  plans: Plan[];
   onClose: () => void;
   onCreated: () => Promise<void>;
 }) {
@@ -609,8 +685,14 @@ function AddResourceModal({
   const [capacity, setCapacity] = useState("4");
   const [coinsHr, setCoinsHr] = useState("0");
   const [moneyHr, setMoneyHr] = useState("0");
+  const [planId, setPlanId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedPlan = plans.find((p) => p.id === planId) ?? null;
+  const addPlanRatePreview = selectedPlan
+    ? computePlanRate(selectedPlan, parseInt(seats, 10) || 1)
+    : null;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -623,6 +705,7 @@ function AddResourceModal({
         name: name.trim(),
         resource_type: type,
         status: "vacant",
+        plan_id: planId,
       };
       if (type === "meeting_room") {
         body.capacity = parseInt(capacity, 10) || 0;
@@ -818,6 +901,34 @@ function AddResourceModal({
               onChange={(e) => setMoneyHr(e.target.value)}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
+          </div>
+        )}
+
+        {/* Tariff Plan */}
+        {showFlex && (
+          <div>
+            <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+              Tariff Plan
+            </label>
+            <select
+              value={planId ?? ""}
+              onChange={(e) => setPlanId(e.target.value ? Number(e.target.value) : null)}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
+            >
+              <option value="">-- No plan (manual rate) --</option>
+              {plans.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.billing_mode === "per_unit" ? "per unit" : "per seat"})
+                </option>
+              ))}
+            </select>
+            {selectedPlan && addPlanRatePreview != null && (
+              <div className="text-xs text-gray-500 mt-1">
+                {selectedPlan.billing_mode === "per_seat"
+                  ? `= ${formatUzs(selectedPlan.base_rate_uzs)} x ${parseInt(seats, 10) || 1} seats = ${formatUzs(addPlanRatePreview)}/month`
+                  : `= ${formatUzs(addPlanRatePreview)}/month`}
+              </div>
+            )}
           </div>
         )}
 

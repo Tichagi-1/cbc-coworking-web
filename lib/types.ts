@@ -65,6 +65,11 @@ export interface Resource {
   rate_per_hour: number | null;
   is_standalone_bookable: boolean;
 
+  // plan linkage
+  plan_id: number | null;
+  plan?: Plan | null;
+  effective_monthly_rate?: number | null;
+
   // booking policy
   min_advance_minutes: number;
   resident_discount_pct: number;
@@ -99,12 +104,31 @@ export interface Tenant {
   plan_type: string | null;
   monthly_rate: number;
   coin_balance: number;
+  coin_last_reset: string | null;
   is_resident: boolean;
 }
 
 export interface AvailabilitySlot {
   time: string; // "HH:MM"
   available: boolean;
+}
+
+export type BillingMode = "per_unit" | "per_seat";
+
+export interface Plan {
+  id: number;
+  building_id: number;
+  name: string;
+  billing_mode: BillingMode;
+  base_rate_uzs: number;
+  coin_pct: number;
+  coin_reset_day: number;
+  meeting_discount_pct: number;
+  meeting_discount_on: boolean;
+  event_discount_pct: number;
+  event_discount_on: boolean;
+  is_active: boolean;
+  created_at?: string;
 }
 
 export type BookingPaymentType = "coins" | "money";

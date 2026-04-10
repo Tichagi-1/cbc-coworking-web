@@ -234,7 +234,13 @@ export default function BookingsPage() {
     const hours = (toMins - fromMins) / 60;
     const coinsRate = selectedRoom.rate_coins_per_hour ?? 0;
     const moneyRate = selectedRoom.rate_money_per_hour ?? 0;
-    const discountPct = selectedRoom.resident_discount_pct || 0;
+    // Use plan meeting discount if available, otherwise fall back to resource discount
+    const planDiscount =
+      selectedRoom.plan?.meeting_discount_on
+        ? selectedRoom.plan.meeting_discount_pct
+        : 0;
+    const discountPct = planDiscount > 0 ? planDiscount : (selectedRoom.resident_discount_pct || 0);
+    const planName = planDiscount > 0 ? selectedRoom.plan?.name : null;
     const isResident = tenant?.is_resident ?? false;
     const discountMult = discountPct > 0 && isResident ? 1 - discountPct / 100 : 1;
     const effectiveMoneyRate = moneyRate * discountMult;
@@ -252,6 +258,7 @@ export default function BookingsPage() {
         moneyOwed,
         uzsOwed,
         discountPct: isResident ? discountPct : 0,
+        planName: isResident ? planName : null,
       };
     }
 
@@ -265,6 +272,7 @@ export default function BookingsPage() {
           moneyOwed: 0,
           uzsOwed: 0,
           discountPct,
+          planName,
         };
       }
       const coinsOwed = coinsNeeded - tenant.coin_balance;
@@ -279,6 +287,7 @@ export default function BookingsPage() {
         moneyOwed,
         uzsOwed,
         discountPct,
+        planName,
       };
     }
 
@@ -292,6 +301,7 @@ export default function BookingsPage() {
       moneyOwed,
       uzsOwed,
       discountPct: 0,
+      planName: null,
     };
   }, [selectedRoom, timeFrom, timeTo, tenant]);
 
@@ -651,7 +661,9 @@ export default function BookingsPage() {
                 )}
                 {cost.discountPct > 0 && (
                   <span className="ml-2 text-green-700 font-semibold text-xs">
-                    -{cost.discountPct}% resident discount
+                    {cost.planName
+                      ? `${cost.planName}: ${cost.discountPct}% resident discount`
+                      : `-${cost.discountPct}% resident discount`}
                   </span>
                 )}
               </div>
