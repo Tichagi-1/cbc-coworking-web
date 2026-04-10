@@ -619,6 +619,43 @@ export default function MapPage() {
             })}
           </div>
 
+          {/* Export buttons */}
+          <button
+            type="button"
+            onClick={async () => {
+              const el = document.querySelector(".floor-canvas-wrapper");
+              if (!el) return;
+              const html2canvas = (await import("html2canvas")).default;
+              const canvas = await html2canvas(el as HTMLElement, { backgroundColor: "white", scale: 2 });
+              const link = document.createElement("a");
+              link.download = `floor-plan-${floorId}-${dayjs().format("YYYY-MM-DD")}.png`;
+              link.href = canvas.toDataURL("image/png");
+              link.click();
+            }}
+            className="px-3 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            PNG
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              const el = document.querySelector(".floor-canvas-wrapper");
+              if (!el) return;
+              const html2canvas = (await import("html2canvas")).default;
+              const canvas = await html2canvas(el as HTMLElement, { backgroundColor: "white", scale: 2 });
+              const imgData = canvas.toDataURL("image/png");
+              const { jsPDF } = await import("jspdf");
+              const pdf = new jsPDF("landscape", "mm", "a4");
+              const pw = pdf.internal.pageSize.getWidth();
+              const ph = pdf.internal.pageSize.getHeight();
+              pdf.addImage(imgData, "PNG", 0, 0, pw, ph);
+              pdf.save(`floor-plan-${dayjs().format("YYYY-MM-DD")}.pdf`);
+            }}
+            className="px-3 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            PDF
+          </button>
+
           {mode === "history" && (
             <input
               type="date"
@@ -659,16 +696,18 @@ export default function MapPage() {
             canUpload={isAdmin}
           />
         ) : (
-          <FloorCanvas
-            floorPlanUrl={planUrl}
-            zones={allZones}
-            mode={mode}
-            drawingEnabled={drawingEnabled}
-            selectedZoneId={selectedZoneId}
-            onZoneClick={handleZoneClick}
-            onZoneSelect={handleZoneSelect}
-            onZoneCreated={handleZoneCreated}
-          />
+          <div className="floor-canvas-wrapper">
+            <FloorCanvas
+              floorPlanUrl={planUrl}
+              zones={allZones}
+              mode={mode}
+              drawingEnabled={drawingEnabled}
+              selectedZoneId={selectedZoneId}
+              onZoneClick={handleZoneClick}
+              onZoneSelect={handleZoneSelect}
+              onZoneCreated={handleZoneCreated}
+            />
+          </div>
         )}
       </div>
 
