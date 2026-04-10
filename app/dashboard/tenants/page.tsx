@@ -90,6 +90,7 @@ export default function TenantsPage() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Company</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Unit</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Plan</th>
                 <th className="text-right px-4 py-3 font-semibold text-gray-600">Coin Balance</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Last Reset</th>
@@ -103,6 +104,7 @@ export default function TenantsPage() {
               {tenants.map((t) => (
                 <tr key={t.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-900">{t.company_name}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">{t.unit_number || "—"}</td>
                   <td className="px-4 py-3">
                     {t.plan_type ? (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-semibold">
@@ -407,6 +409,8 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
   const [companyName, setCompanyName] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [unitNumber, setUnitNumber] = useState("");
+  const [notes, setNotes] = useState("");
   const [isResident, setIsResident] = useState(true);
   const [planId, setPlanId] = useState<number | null>(null);
   const [monthlyRate, setMonthlyRate] = useState(0);
@@ -462,6 +466,8 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
         company_name: companyName.trim(),
         contact_name: contactName.trim() || null,
         contact_phone: contactPhone.trim() || null,
+        unit_number: unitNumber.trim() || null,
+        notes: notes.trim() || null,
         plan_type: selectedPlan?.name || null,
         monthly_rate: monthlyRate,
         is_resident: isResident,
@@ -529,6 +535,17 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
           </label>
         </div>
 
+        <label style={labelStyle}>
+          Office / Unit Number
+          <input value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} placeholder="e.g. 417, Floor 3, Desk A4" style={inputStyle} />
+        </label>
+
+        <label style={labelStyle}>
+          Notes
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any additional notes..." rows={3}
+            style={{ ...inputStyle, resize: "vertical" as const }} />
+        </label>
+
         <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8 }}>
           <input type="checkbox" checked={isResident} onChange={(e) => setIsResident(e.target.checked)} />
           Is Resident
@@ -577,6 +594,8 @@ function EditTenantModal({ tenant, onClose, onSaved }: { tenant: Tenant; onClose
   const [contactName, setContactName] = useState(tenant.contact_name || "");
   const [planType, setPlanType] = useState(tenant.plan_type || "");
   const [monthlyRate, setMonthlyRate] = useState(tenant.monthly_rate);
+  const [unitNumber, setUnitNumber] = useState(tenant.unit_number || "");
+  const [notes, setNotes] = useState(tenant.notes || "");
   const [isResident, setIsResident] = useState(tenant.is_resident);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -591,6 +610,8 @@ function EditTenantModal({ tenant, onClose, onSaved }: { tenant: Tenant; onClose
         plan_type: planType.trim() || null,
         monthly_rate: monthlyRate,
         is_resident: isResident,
+        unit_number: unitNumber.trim() || null,
+        notes: notes.trim() || null,
       });
       await onSaved();
     } catch (e: unknown) {
@@ -622,6 +643,14 @@ function EditTenantModal({ tenant, onClose, onSaved }: { tenant: Tenant; onClose
         <label style={labelStyle}>
           Contact Name
           <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} style={inputStyle} />
+        </label>
+        <label style={labelStyle}>
+          Office / Unit Number
+          <input value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} placeholder="e.g. 417, Floor 3" style={inputStyle} />
+        </label>
+        <label style={labelStyle}>
+          Notes
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any notes..." rows={2} style={{ ...inputStyle, resize: "vertical" as const }} />
         </label>
         <label style={labelStyle}>
           Plan Type

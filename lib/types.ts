@@ -106,6 +106,8 @@ export interface Tenant {
   coin_balance: number;
   coin_last_reset: string | null;
   is_resident: boolean;
+  unit_number: string | null;
+  notes: string | null;
 }
 
 export interface AvailabilitySlot {
