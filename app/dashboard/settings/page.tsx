@@ -181,6 +181,53 @@ export default function SettingsPage() {
               />
             </div>
           </label>
+
+          {/* Zone Colors */}
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Zone Fill Colors</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {[
+                { key: "color_office", label: "Office" },
+                { key: "color_meeting_room", label: "Meeting Room" },
+                { key: "color_hot_desk", label: "Hot Desk" },
+                { key: "color_open_space", label: "Open Space" },
+                { key: "color_amenity", label: "Amenity" },
+              ].map(({ key, label }) => (
+                <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#374151" }}>
+                  <input
+                    type="color"
+                    value={settings[key] || "#94a3b8"}
+                    onChange={(e) => {
+                      setSettings((p) => ({ ...p, [key]: e.target.value }));
+                      saveSetting(key, e.target.value);
+                    }}
+                    style={{ width: 36, height: 36, border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer", padding: 2 }}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, margin: "16px 0 12px" }}>Border Colors (Status)</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {[
+                { key: "color_vacant_border", label: "Vacant border" },
+                { key: "color_occupied_border", label: "Occupied border" },
+              ].map(({ key, label }) => (
+                <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#374151" }}>
+                  <input
+                    type="color"
+                    value={settings[key] || "#94a3b8"}
+                    onChange={(e) => {
+                      setSettings((p) => ({ ...p, [key]: e.target.value }));
+                      saveSetting(key, e.target.value);
+                    }}
+                    style={{ width: 36, height: 36, border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer", padding: 2 }}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

@@ -3,31 +3,41 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // fabric@5 has no upstream d.ts; localize `any` to this file.
 
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Point, Zone, UnitStatus, ResourceType } from "@/lib/types";
 
 export interface FloorCanvasHandle {
   exportPNG: () => string | null;
   clearBackground: () => void;
+  resetZoom: () => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  getZoomLevel: () => number;
 }
 
 type Mode = "view" | "edit" | "history";
+
+export interface ZoneColorConfig {
+  office: string;
+  meeting_room: string;
+  hot_desk: string;
+  open_space: string;
+  amenity: string;
+  vacant_border: string;
+  occupied_border: string;
+}
 
 interface FloorCanvasProps {
   floorPlanUrl: string | null;
   zones: Zone[];
   mode: Mode;
-  /** When true (edit mode only), clicks add polygon points. */
   drawingEnabled?: boolean;
-  /** Highlight this zone (by id, including negative pending ids). */
   selectedZoneId?: number | null;
-
-  /** View mode: clicking a polygon. */
+  zoneColors?: ZoneColorConfig;
   onZoneClick?: (zone: Zone) => void;
-  /** Edit mode: clicking a polygon (selects). */
   onZoneSelect?: (zone: Zone) => void;
-  /** Edit mode: polygon finalized via double-click. */
   onZoneCreated?: (points: Point[]) => void;
+  onZoomChange?: (level: number) => void;
 }
 
 // Fill color comes from the current status (most important — instantly
@@ -89,20 +99,40 @@ function polygonCentroid(points: Point[]): Point {
   return { x: cx / points.length, y: cy / points.length };
 }
 
+const DEFAULT_COLORS: ZoneColorConfig = {
+  office: "#4ade80",
+  meeting_room: "#a78bfa",
+  hot_desk: "#60a5fa",
+  open_space: "#fb923c",
+  amenity: "#94a3b8",
+  vacant_border: "#ef4444",
+  occupied_border: "#22c55e",
+};
+
 const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function FloorCanvas({
   floorPlanUrl,
   zones,
   mode,
   drawingEnabled = false,
   selectedZoneId = null,
+  zoneColors,
   onZoneClick,
   onZoneSelect,
   onZoneCreated,
+  onZoomChange,
 }, ref) {
+  const colors = zoneColors || DEFAULT_COLORS;
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasElRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<any>(null);
   const fabricLibRef = useRef<any>(null);
+
+  const notifyZoom = useCallback(
+    (canvas: any) => {
+      onZoomChange?.(Math.round(canvas.getZoom() * 100));
+    },
+    [onZoomChange]
+  );
 
   useImperativeHandle(ref, () => ({
     exportPNG: () => {
@@ -114,6 +144,35 @@ const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function Flo
       const canvas = fabricCanvasRef.current;
       if (!canvas) return;
       canvas.setBackgroundImage(null, () => canvas.renderAll());
+    },
+    resetZoom: () => {
+      const canvas = fabricCanvasRef.current;
+      if (!canvas) return;
+      applyResponsiveScale();
+      canvas.setViewportTransform([canvas.getZoom(), 0, 0, canvas.getZoom(), 0, 0]);
+      notifyZoom(canvas);
+    },
+    zoomIn: () => {
+      const canvas = fabricCanvasRef.current;
+      const fabric = fabricLibRef.current;
+      if (!canvas || !fabric) return;
+      const zoom = Math.min(canvas.getZoom() * 1.25, 5);
+      canvas.zoomToPoint(new fabric.Point(canvas.getWidth() / 2, canvas.getHeight() / 2), zoom);
+      canvas.requestRenderAll();
+      notifyZoom(canvas);
+    },
+    zoomOut: () => {
+      const canvas = fabricCanvasRef.current;
+      const fabric = fabricLibRef.current;
+      if (!canvas || !fabric) return;
+      const zoom = Math.max(canvas.getZoom() / 1.25, 0.2);
+      canvas.zoomToPoint(new fabric.Point(canvas.getWidth() / 2, canvas.getHeight() / 2), zoom);
+      canvas.requestRenderAll();
+      notifyZoom(canvas);
+    },
+    getZoomLevel: () => {
+      const canvas = fabricCanvasRef.current;
+      return canvas ? Math.round(canvas.getZoom() * 100) : 100;
     },
   }));
 
@@ -141,6 +200,45 @@ const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function Flo
 
       fabricLibRef.current = fabric;
       fabricCanvasRef.current = canvas;
+
+      // ── Mouse wheel zoom ─────────────────────────────────────────────
+      canvas.on("mouse:wheel", (opt: any) => {
+        const delta = opt.e.deltaY;
+        let zoom = canvas.getZoom();
+        zoom *= 0.999 ** delta;
+        zoom = Math.min(Math.max(zoom, 0.2), 5);
+        canvas.zoomToPoint(new fabric.Point(opt.e.offsetX, opt.e.offsetY), zoom);
+        opt.e.preventDefault();
+        opt.e.stopPropagation();
+        onZoomChange?.(Math.round(zoom * 100));
+      });
+
+      // ── Alt+drag pan ─────────────────────────────────────────────────
+      let panning = false;
+      let panLast = { x: 0, y: 0 };
+      canvas.on("mouse:down", (opt: any) => {
+        const evt = opt.e as MouseEvent;
+        if (evt.button === 1 || evt.altKey) {
+          panning = true;
+          canvas.selection = false;
+          panLast = { x: evt.clientX, y: evt.clientY };
+          canvas.defaultCursor = "grabbing";
+          evt.preventDefault();
+        }
+      });
+      canvas.on("mouse:move", (opt: any) => {
+        if (!panning) return;
+        const evt = opt.e as MouseEvent;
+        canvas.relativePan(new fabric.Point(evt.clientX - panLast.x, evt.clientY - panLast.y));
+        panLast = { x: evt.clientX, y: evt.clientY };
+      });
+      canvas.on("mouse:up", () => {
+        if (panning) {
+          panning = false;
+          canvas.selection = false;
+          canvas.defaultCursor = "default";
+        }
+      });
 
       renderScene();
     })();
@@ -215,23 +313,41 @@ const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function Flo
 
     const drawZones = () => {
       zones.forEach((z) => {
-        // ── Fill: status (or unmapped fallback) ───────────────────────────
-        const fillColor = z.status ? STATUS_FILL[z.status] : UNMAPPED_FILL;
-        const fillOpacity = z.status
-          ? STATUS_FILL_OPACITY
-          : UNMAPPED_FILL_OPACITY;
-
-        // ── Border: resource type (or unknown fallback) ───────────────────
-        const knownType = z.resource_type as ResourceType | undefined;
-        const hasKnownType = !!knownType && knownType in TYPE_BORDER;
-        const borderColor = hasKnownType
-          ? TYPE_BORDER[knownType as ResourceType]
-          : UNKNOWN_TYPE_BORDER;
-        const borderWidth = hasKnownType
-          ? TYPE_BORDER_WIDTH
-          : UNKNOWN_TYPE_BORDER_WIDTH;
-
+        const rtype = (z.resource_type || "office") as keyof ZoneColorConfig;
+        const status = z.status;
         const isSelected = selectedZoneId != null && selectedZoneId === z.id;
+
+        // Type-specific fill from settings colors
+        const typeColor = colors[rtype] || colors.office;
+
+        let fillColor: string;
+        let fillOpacity: number;
+        let borderColor: string;
+        let borderWidth: number;
+
+        if (rtype === "meeting_room") {
+          // Meeting rooms: subtle type fill, border shows status
+          fillColor = typeColor;
+          fillOpacity = 0.2;
+          borderColor = status === "occupied"
+            ? colors.occupied_border
+            : status === "reserved" ? "#eab308" : colors.vacant_border;
+          borderWidth = 3;
+        } else if (z.resource_id) {
+          // Other types: fill opacity by status, border by status
+          fillColor = typeColor;
+          fillOpacity = status === "occupied" ? 0.55 : 0.25;
+          borderColor = status === "occupied"
+            ? colors.occupied_border
+            : status === "reserved" ? "#eab308" : colors.vacant_border;
+          borderWidth = 2.5;
+        } else {
+          // Unmapped
+          fillColor = UNMAPPED_FILL;
+          fillOpacity = UNMAPPED_FILL_OPACITY;
+          borderColor = UNKNOWN_TYPE_BORDER;
+          borderWidth = UNKNOWN_TYPE_BORDER_WIDTH;
+        }
 
         const poly = new fabric.Polygon(z.points, {
           fill: fillColor,
@@ -250,10 +366,11 @@ const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function Flo
         const area = polygonArea(z.points);
 
         // ── Type indicator letter (top-left corner of polygon) ───────────
-        if (hasKnownType && area > INDICATOR_AREA_THRESHOLD) {
+        const rtKey = rtype as ResourceType;
+        if (rtKey in TYPE_LETTER && area > INDICATOR_AREA_THRESHOLD) {
           const minX = Math.min(...z.points.map((p) => p.x));
           const minY = Math.min(...z.points.map((p) => p.y));
-          const indicator = new fabric.Text(TYPE_LETTER[knownType as ResourceType], {
+          const indicator = new fabric.Text(TYPE_LETTER[rtKey], {
             left: minX + 4,
             top: minY + 2,
             originX: "left",

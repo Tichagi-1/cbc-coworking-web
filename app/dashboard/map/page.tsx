@@ -21,7 +21,7 @@ import type {
   UserRole,
   Zone,
 } from "@/lib/types";
-import type { FloorCanvasHandle } from "@/components/FloorCanvas";
+import type { FloorCanvasHandle, ZoneColorConfig } from "@/components/FloorCanvas";
 import ZonePanel, { ResourcePatchPayload } from "@/components/ZonePanel";
 import AddFloorModal from "@/components/AddFloorModal";
 import ZoneNameModal from "@/components/ZoneNameModal";
@@ -86,8 +86,10 @@ export default function MapPage() {
   const [historyDate, setHistoryDate] = useState(dayjs().format("YYYY-MM-DD"));
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(100);
+  const [zoneColors, setZoneColors] = useState<ZoneColorConfig | undefined>(undefined);
 
-  // ── Building ───────────────────────────────────────────────────────────
+  // ── Building + zone colors ──────────────────────────────────────────────
   useEffect(() => {
     api
       .get<Building[]>("/buildings/")
@@ -95,6 +97,22 @@ export default function MapPage() {
         setBuilding(res.data.find((b) => b.id === BUILDING_ID) ?? null)
       )
       .catch((e) => setError(e?.message || "Failed to load building"));
+    // Load zone colors from settings
+    api
+      .get<Record<string, string>>("/settings")
+      .then((res) => {
+        const s = res.data;
+        setZoneColors({
+          office: s.color_office || "#4ade80",
+          meeting_room: s.color_meeting_room || "#a78bfa",
+          hot_desk: s.color_hot_desk || "#60a5fa",
+          open_space: s.color_open_space || "#fb923c",
+          amenity: s.color_amenity || "#94a3b8",
+          vacant_border: s.color_vacant_border || "#ef4444",
+          occupied_border: s.color_occupied_border || "#22c55e",
+        });
+      })
+      .catch(() => {});
   }, []);
 
   // ── Floors ─────────────────────────────────────────────────────────────
@@ -762,10 +780,19 @@ export default function MapPage() {
             canUpload={isAdmin}
           />
         ) : (
+          <>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "white", borderBottom: "1px solid #e5e7eb", fontSize: 12 }}>
+            <button onClick={() => floorCanvasRef.current?.zoomIn()} style={{ padding: "2px 8px", border: "1px solid #e5e7eb", borderRadius: 4, background: "white", cursor: "pointer", fontSize: 14 }}>+</button>
+            <span style={{ minWidth: 36, textAlign: "center", color: "#6b7280" }}>{zoomLevel}%</span>
+            <button onClick={() => floorCanvasRef.current?.zoomOut()} style={{ padding: "2px 8px", border: "1px solid #e5e7eb", borderRadius: 4, background: "white", cursor: "pointer", fontSize: 14 }}>−</button>
+            <button onClick={() => floorCanvasRef.current?.resetZoom()} style={{ padding: "2px 6px", border: "1px solid #e5e7eb", borderRadius: 4, background: "white", cursor: "pointer", fontSize: 11, color: "#6b7280" }}>Reset</button>
+            <span style={{ fontSize: 10, color: "#9ca3af", marginLeft: 4 }}>Scroll to zoom · Alt+drag to pan</span>
+          </div>
           <div className="floor-canvas-wrapper">
             <FloorCanvas
               ref={floorCanvasRef}
               floorPlanUrl={planUrl}
+              zoneColors={zoneColors}
               zones={allZones}
               mode={mode}
               drawingEnabled={drawingEnabled}
@@ -773,8 +800,10 @@ export default function MapPage() {
               onZoneClick={handleZoneClick}
               onZoneSelect={handleZoneSelect}
               onZoneCreated={handleZoneCreated}
+              onZoomChange={setZoomLevel}
             />
           </div>
+          </>
         )}
       </div>
 
