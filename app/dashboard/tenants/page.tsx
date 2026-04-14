@@ -103,7 +103,12 @@ export default function TenantsPage() {
             <tbody className="divide-y divide-gray-100">
               {tenants.map((t) => (
                 <tr key={t.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{t.company_name}</td>
+                  <td className="px-4 py-3">
+                    <div style={{ fontWeight: 500, color: "#111827" }}>{t.company_name}</div>
+                    <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 999, background: t.tenant_type === "individual" ? "#fef3c7" : "#eff6ff", color: t.tenant_type === "individual" ? "#92400e" : "#1e40af", fontWeight: 600 }}>
+                      {t.tenant_type === "individual" ? "👤 Individual" : "🏢 Company"}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{t.unit_number || "—"}</td>
                   <td className="px-4 py-3">
                     {t.plan_type ? (
@@ -412,6 +417,7 @@ function CoinModal({
 
 function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => Promise<void> }) {
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [tenantType, setTenantType] = useState("company");
   const [companyName, setCompanyName] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -469,8 +475,9 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
       // Step 2: Create tenant
       await api.post("/tenants/", {
         user_id: userId,
+        tenant_type: tenantType,
         company_name: companyName.trim(),
-        contact_name: contactName.trim() || null,
+        contact_name: tenantType === "company" ? (contactName.trim() || null) : null,
         contact_phone: contactPhone.trim() || null,
         unit_number: unitNumber.trim() || null,
         notes: notes.trim() || null,
@@ -521,22 +528,36 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
         </label>
 
         <div style={{ borderTop: "1px solid #e5e7eb", marginTop: 8, paddingTop: 16, marginBottom: 8 }}>
-          <div style={{ fontSize: 13, color: "#0369a1", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8, padding: 12, marginBottom: 16 }}>
-            Company Details
+          {/* Type selector */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            {(["company", "individual"] as const).map((t) => (
+              <button key={t} type="button" onClick={() => setTenantType(t)}
+                style={{
+                  flex: 1, padding: "8px 0", borderRadius: 6, cursor: "pointer", fontSize: 13, textTransform: "capitalize",
+                  border: `2px solid ${tenantType === t ? "#003DA5" : "#e5e7eb"}`,
+                  background: tenantType === t ? "#eff6ff" : "white",
+                  color: tenantType === t ? "#003DA5" : "#6b7280",
+                  fontWeight: tenantType === t ? 600 : 400,
+                }}>
+                {t === "company" ? "🏢 Company" : "👤 Individual"}
+              </button>
+            ))}
           </div>
         </div>
 
         <label style={labelStyle}>
-          Company Name *
+          {tenantType === "company" ? "Company Name *" : "Full Name *"}
           <input type="text" required value={companyName} onChange={(e) => setCompanyName(e.target.value)} style={inputStyle} />
         </label>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: tenantType === "company" ? "1fr 1fr" : "1fr", gap: 12 }}>
+          {tenantType === "company" && (
+            <label style={labelStyle}>
+              Contact Name
+              <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} style={inputStyle} />
+            </label>
+          )}
           <label style={labelStyle}>
-            Contact Name
-            <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} style={inputStyle} />
-          </label>
-          <label style={labelStyle}>
-            Contact Phone
+            Phone
             <input type="text" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} style={inputStyle} />
           </label>
         </div>

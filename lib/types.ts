@@ -99,6 +99,7 @@ export interface AuthResponse {
 export interface Tenant {
   id: number;
   user_id: number;
+  tenant_type: string;
   company_name: string;
   contact_name: string | null;
   plan_type: string | null;
