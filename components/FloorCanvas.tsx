@@ -8,6 +8,7 @@ import type { Point, Zone, UnitStatus, ResourceType } from "@/lib/types";
 
 export interface FloorCanvasHandle {
   exportPNG: () => string | null;
+  clearBackground: () => void;
 }
 
 type Mode = "view" | "edit" | "history";
@@ -108,6 +109,11 @@ const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function Flo
       const canvas = fabricCanvasRef.current;
       if (!canvas) return null;
       return canvas.toDataURL({ format: "png", multiplier: 2, quality: 1 });
+    },
+    clearBackground: () => {
+      const canvas = fabricCanvasRef.current;
+      if (!canvas) return;
+      canvas.setBackgroundImage(null, () => canvas.renderAll());
     },
   }));
 
@@ -289,8 +295,12 @@ const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function Flo
     };
 
     if (floorPlanUrl) {
+      // Append timestamp to bust browser/CDN cache after re-upload
+      const cacheBustedUrl = floorPlanUrl.includes("?")
+        ? `${floorPlanUrl}&_t=${Date.now()}`
+        : `${floorPlanUrl}?_t=${Date.now()}`;
       fabric.Image.fromURL(
-        floorPlanUrl,
+        cacheBustedUrl,
         (img: any) => {
           if (!img) {
             baseSizeRef.current = DEFAULT_BASE;

@@ -597,6 +597,25 @@ export default function MapPage() {
                       <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
                     </svg>
                   </button>
+                  {currentFloor?.floor_plan_url && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!floorId) return;
+                        if (!confirm("Remove floor plan image?\n\nZones, resources, and bookings will be kept.")) return;
+                        try {
+                          await api.delete(`/buildings/${BUILDING_ID}/floors/${floorId}/plan`);
+                          await loadFloors(floorId);
+                        } catch (e) {
+                          setError((e as Error)?.message || "Failed to clear plan");
+                        }
+                      }}
+                      title="Clear floor plan image (keeps all data)"
+                      style={{ padding: "4px 8px", border: "1px solid #fca5a5", borderRadius: 6, background: "white", color: "#dc2626", fontSize: 11, cursor: "pointer" }}
+                    >
+                      Clear Plan
+                    </button>
+                  )}
                 </>
               )}
             </div>
