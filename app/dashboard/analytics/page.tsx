@@ -31,6 +31,7 @@ export default function AnalyticsPage() {
   const [period, setPeriod] = useState(30);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [vacancy, setVacancy] = useState<any>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -41,6 +42,10 @@ export default function AnalyticsPage() {
       .finally(() => setLoading(false));
   }, [period]);
 
+  useEffect(() => {
+    api.get("/analytics/vacancy").then((r) => setVacancy(r.data)).catch(() => {});
+  }, []);
+
   if (loading) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "calc(100vh - 64px)", color: "#6b7280", fontSize: 14 }}>
@@ -48,11 +53,6 @@ export default function AnalyticsPage() {
       </div>
     );
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [vacancy, setVacancy] = useState<any>(null);
-  useEffect(() => {
-    api.get("/analytics/vacancy").then((r) => setVacancy(r.data)).catch(() => {});
-  }, []);
 
   if (!data) return null;
 
