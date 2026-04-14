@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
+import { api } from "@/lib/api";
 
 const NAV_ITEMS = [
   { href: "/dashboard/map", label: "Floor Map", icon: "🗺️" },
@@ -17,9 +18,15 @@ const NAV_ITEMS = [
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [logoUrl, setLogoUrl] = useState("");
+  const [companyName, setCompanyName] = useState("CBC");
 
   useEffect(() => {
     setCollapsed(localStorage.getItem("sidebar_collapsed") === "true");
+    api.get<Record<string, string>>("/settings").then((r) => {
+      if (r.data.logo_url) setLogoUrl(r.data.logo_url);
+      if (r.data.company_name) setCompanyName(r.data.company_name);
+    }).catch(() => {});
   }, []);
 
   const toggleSidebar = () => {
@@ -50,9 +57,17 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             textAlign: collapsed ? "center" : "left",
           }}
         >
-          <div style={{ fontSize: collapsed ? 16 : 20, fontWeight: 700, letterSpacing: "-0.02em" }}>
-            CBC
-          </div>
+          {logoUrl ? (
+            <img
+              src={logoUrl.startsWith("http") ? logoUrl : `${process.env.NEXT_PUBLIC_API_URL || ""}${logoUrl}`}
+              alt={companyName}
+              style={{ height: collapsed ? 28 : 36, maxWidth: collapsed ? 40 : 140, objectFit: "contain" }}
+            />
+          ) : (
+            <div style={{ fontSize: collapsed ? 16 : 20, fontWeight: 700, letterSpacing: "-0.02em" }}>
+              {collapsed ? companyName.slice(0, 1) : companyName}
+            </div>
+          )}
           {!collapsed && (
             <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(255,255,255,0.4)", marginTop: 2 }}>
               Coworking OS

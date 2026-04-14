@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
 import type { Resource } from "@/lib/types";
 
@@ -40,6 +40,11 @@ export default function EditResourceModal({ resource, onSave, onClose }: Props) 
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Photos
+  const [photos, setPhotos] = useState<string[]>(resource.photos || []);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Salto lock state
   const [lock, setLock] = useState<LockData | null>(null);
@@ -87,6 +92,40 @@ export default function EditResourceModal({ resource, onSave, onClose }: Props) 
       setLockSaving(false);
     }
   }
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (photos.length >= 5) return;
+    setUploadingPhoto(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await api.post<{ photos: string[] }>(
+        `/resources/${resource.id}/photos`,
+        form,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+      setPhotos(res.data.photos || []);
+    } catch {
+      setError("Photo upload failed");
+    } finally {
+      setUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDeletePhoto = async (photoUrl: string) => {
+    try {
+      const res = await api.delete<{ photos: string[] }>(
+        `/resources/${resource.id}/photos`,
+        { data: { url: photoUrl } }
+      );
+      setPhotos(res.data.photos || []);
+    } catch {
+      setError("Failed to delete photo");
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -388,6 +427,59 @@ export default function EditResourceModal({ resource, onSave, onClose }: Props) 
             )}
           </div>
         )}
+
+        {/* Photos */}
+        <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 16, marginTop: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "#374151", marginBottom: 8 }}>
+            Photos ({photos.length}/5)
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8 }}>
+            {Array.from({ length: 5 }).map((_, i) => {
+              const photo = photos[i];
+              const fullUrl = photo
+                ? photo.startsWith("http") ? photo : `${process.env.NEXT_PUBLIC_API_URL || ""}${photo}`
+                : null;
+              return (
+                <div
+                  key={i}
+                  style={{
+                    aspectRatio: "1", borderRadius: 6, overflow: "hidden",
+                    border: fullUrl ? "1px solid #e5e7eb" : "2px dashed #d1d5db",
+                    background: fullUrl ? "transparent" : "#f9fafb",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: fullUrl ? "default" : photos.length < 5 ? "pointer" : "not-allowed",
+                    position: "relative",
+                  }}
+                  onClick={() => !fullUrl && photos.length < 5 && fileInputRef.current?.click()}
+                >
+                  {fullUrl ? (
+                    <>
+                      <img src={fullUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeletePhoto(photo); }}
+                        style={{
+                          position: "absolute", top: 3, right: 3,
+                          background: "rgba(0,0,0,0.65)", color: "white",
+                          border: "none", borderRadius: "50%", width: 20, height: 20,
+                          cursor: "pointer", fontSize: 12, display: "flex",
+                          alignItems: "center", justifyContent: "center",
+                        }}
+                      >
+                        ×
+                      </button>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: 22, color: "#d1d5db" }}>
+                      {uploadingPhoto && i === photos.length ? "..." : "+"}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: "none" }} onChange={handlePhotoUpload} />
+          <p style={{ fontSize: 11, color: "#9ca3af", margin: "6px 0 0" }}>Click empty slot to upload. JPG/PNG/WebP, max 5MB each.</p>
+        </div>
 
         <div
           style={{
