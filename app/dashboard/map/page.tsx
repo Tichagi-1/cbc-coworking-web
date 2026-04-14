@@ -653,46 +653,34 @@ export default function MapPage() {
             PDF
           </button>
 
-          {/* History mode — date slider */}
-          {mode === "history" && (() => {
-            const now = new Date();
-            const minDate = new Date(now.getFullYear(), now.getMonth() - 6, 1);
-            const maxDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-            const dateToVal = (d: Date) => Math.floor((d.getTime() - minDate.getTime()) / 86400000);
-            const valToDate = (v: number) => new Date(minDate.getTime() + v * 86400000).toISOString().slice(0, 10);
-            const totalDays = dateToVal(maxDate);
-            const sliderVal = dateToVal(new Date(historyDate || now.toISOString().slice(0, 10)));
-            return (
-              <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 260 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#9ca3af" }}>
-                  <span>{minDate.toLocaleDateString("en", { month: "short", year: "numeric" })}</span>
-                  <span style={{ fontWeight: 600, color: "#003DA5", fontSize: 13 }}>
-                    {new Date(historyDate).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })}
-                  </span>
-                  <span>{maxDate.toLocaleDateString("en", { month: "short", year: "numeric" })}</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={totalDays}
-                  value={sliderVal}
-                  onChange={(e) => setHistoryDate(valToDate(+e.target.value))}
-                  style={{ width: "100%", accentColor: "#003DA5", cursor: "pointer" }}
-                />
-                <div style={{ display: "flex", gap: 4 }}>
-                  {[{ label: "30d ago", offset: -30 }, { label: "7d ago", offset: -7 }, { label: "Today", offset: 0 }].map(({ label, offset }) => {
-                    const d = new Date(); d.setDate(d.getDate() + offset);
-                    return (
-                      <button key={offset} onClick={() => setHistoryDate(d.toISOString().slice(0, 10))}
-                        style={{ flex: 1, padding: "3px 0", fontSize: 11, border: "1px solid #e5e7eb", borderRadius: 4, background: "white", cursor: "pointer", color: "#6b7280" }}>
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()}
+          {/* History mode — date picker + quick buttons */}
+          {mode === "history" && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input
+                type="date"
+                value={historyDate || new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setHistoryDate(e.target.value)}
+                style={{ border: "1px solid #d1d5db", borderRadius: 6, padding: "5px 8px", fontSize: 13 }}
+              />
+              {[
+                { label: "Today", days: 0 },
+                { label: "7d ago", days: -7 },
+                { label: "30d ago", days: -30 },
+              ].map(({ label, days }) => {
+                const d = new Date();
+                d.setDate(d.getDate() + days);
+                return (
+                  <button
+                    key={label}
+                    onClick={() => setHistoryDate(d.toISOString().slice(0, 10))}
+                    style={{ padding: "5px 10px", fontSize: 12, border: "1px solid #e5e7eb", borderRadius: 4, background: "white", cursor: "pointer", color: "#6b7280" }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
