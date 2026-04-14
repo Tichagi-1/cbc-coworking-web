@@ -259,6 +259,20 @@ export default function MapPage() {
     }
   }
 
+  async function handleDeleteFloorPlanOnly() {
+    if (floorId == null) return;
+    setDeleteFloorSubmitting(true);
+    try {
+      await api.delete(`/buildings/${BUILDING_ID}/floors/${floorId}/plan`);
+      setDeleteFloorOpen(false);
+      await loadFloors(floorId);
+    } catch (e) {
+      setError((e as Error)?.message || "Failed to delete floor plan");
+    } finally {
+      setDeleteFloorSubmitting(false);
+    }
+  }
+
   async function handleDeleteFloor() {
     if (floorId == null) return;
     setDeleteFloorSubmitting(true);
@@ -894,22 +908,68 @@ export default function MapPage() {
         onSave={handleResourceSave}
       />
 
-      <ConfirmModal
-        open={deleteFloorOpen}
-        title="Delete floor"
-        message={
-          currentFloor
-            ? `Permanently delete "${
-                currentFloor.name ?? `Floor ${currentFloor.number}`
-              }"? This also removes all of its resources, zones, and bookings. This cannot be undone.`
-            : "Delete this floor?"
-        }
-        confirmLabel="Delete"
-        destructive
-        submitting={deleteFloorSubmitting}
-        onCancel={() => setDeleteFloorOpen(false)}
-        onConfirm={handleDeleteFloor}
-      />
+      {/* Delete floor options modal */}
+      {deleteFloorOpen && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)" }}
+          onMouseDown={() => { if (!deleteFloorSubmitting) setDeleteFloorOpen(false); }}
+        >
+          <div
+            style={{ background: "white", borderRadius: 12, padding: 28, width: 440, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 600 }}>
+              {currentFloor?.name ?? `Floor ${currentFloor?.number}`}
+            </h3>
+
+            {/* Option 1: Plan only */}
+            <button
+              onClick={handleDeleteFloorPlanOnly}
+              disabled={deleteFloorSubmitting || !currentFloor?.floor_plan_url}
+              style={{
+                width: "100%", textAlign: "left", padding: 14, borderRadius: 8,
+                border: "1px solid #e5e7eb", background: "white", cursor: "pointer",
+                marginBottom: 10, opacity: deleteFloorSubmitting || !currentFloor?.floor_plan_url ? 0.5 : 1,
+              }}
+            >
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#374151" }}>
+                Remove floor plan image only
+              </div>
+              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                Keeps all zones, resources, and bookings. You can re-upload a new image.
+              </div>
+            </button>
+
+            {/* Option 2: Full delete */}
+            <button
+              onClick={handleDeleteFloor}
+              disabled={deleteFloorSubmitting}
+              style={{
+                width: "100%", textAlign: "left", padding: 14, borderRadius: 8,
+                border: "1px solid #fca5a5", background: "#fef2f2", cursor: "pointer",
+                opacity: deleteFloorSubmitting ? 0.5 : 1,
+              }}
+            >
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#dc2626" }}>
+                Delete floor and all data
+              </div>
+              <div style={{ fontSize: 12, color: "#991b1b", marginTop: 4 }}>
+                Permanently removes the floor, all zones, resources, and bookings. Cannot be undone.
+              </div>
+            </button>
+
+            <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setDeleteFloorOpen(false)}
+                disabled={deleteFloorSubmitting}
+                style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
