@@ -655,11 +655,27 @@ export default function MapPage() {
             onClick={async () => {
               const dataURL = floorCanvasRef.current?.exportPNG();
               if (!dataURL) { alert("No floor plan loaded"); return; }
+              // Load image to get natural dimensions
+              const img = new window.Image();
+              img.src = dataURL;
+              await new Promise<void>((resolve) => { img.onload = () => resolve(); });
+              const cW = img.naturalWidth;
+              const cH = img.naturalHeight;
+              const ratio = cW / cH;
               const { jsPDF } = await import("jspdf");
-              const pdf = new jsPDF("landscape", "mm", "a4");
+              const orientation = ratio >= 1 ? "landscape" : "portrait";
+              const pdf = new jsPDF({ orientation, unit: "mm", format: "a4" });
               const pw = pdf.internal.pageSize.getWidth();
               const ph = pdf.internal.pageSize.getHeight();
-              pdf.addImage(dataURL, "PNG", 0, 0, pw, ph);
+              const margin = 10;
+              const maxW = pw - margin * 2;
+              const maxH = ph - margin * 2;
+              let imgW = maxW;
+              let imgH = imgW / ratio;
+              if (imgH > maxH) { imgH = maxH; imgW = imgH * ratio; }
+              const x = (pw - imgW) / 2;
+              const y = (ph - imgH) / 2;
+              pdf.addImage(dataURL, "PNG", x, y, imgW, imgH);
               pdf.save(`floor-plan-${dayjs().format("YYYY-MM-DD")}.pdf`);
             }}
             className="px-3 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
