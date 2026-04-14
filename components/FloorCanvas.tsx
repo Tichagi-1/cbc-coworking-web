@@ -365,9 +365,9 @@ const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function Flo
 
         const area = polygonArea(z.points);
 
-        // ── Type indicator letter (top-left corner of polygon) ───────────
+        // ── Type indicator letter (only for zones linked to a resource) ──
         const rtKey = rtype as ResourceType;
-        if (rtKey in TYPE_LETTER && area > INDICATOR_AREA_THRESHOLD) {
+        if (z.resource_id && rtKey in TYPE_LETTER && area > INDICATOR_AREA_THRESHOLD) {
           const minX = Math.min(...z.points.map((p) => p.x));
           const minY = Math.min(...z.points.map((p) => p.y));
           const indicator = new fabric.Text(TYPE_LETTER[rtKey], {
@@ -386,8 +386,8 @@ const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function Flo
           canvas.add(indicator);
         }
 
-        // ── Centroid label (unit name) for sufficiently large polygons ──
-        if (z.label && area > LABEL_AREA_THRESHOLD) {
+        // ── Centroid label (only for zones linked to a resource) ──
+        if (z.resource_id && z.label && area > LABEL_AREA_THRESHOLD) {
           const c = polygonCentroid(z.points);
           const text = new fabric.Text(z.label, {
             left: c.x,
