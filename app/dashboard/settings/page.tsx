@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
-const TABS = ["General", "Branding", "Operations", "Roles"] as const;
+const TABS = ["General", "Branding", "Operations", "Roles", "Salto"] as const;
 type Tab = (typeof TABS)[number];
 
 const PERMISSIONS_LIST = [
@@ -237,6 +237,9 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Salto */}
+      {tab === "Salto" && <SaltoTab settings={settings} saveSetting={saveSetting} saving={saving} />}
+
       {/* Roles & Permissions */}
       {tab === "Roles" && (
         <div style={{ overflowX: "auto" }}>
@@ -279,6 +282,106 @@ export default function SettingsPage() {
           <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>
             Admin permissions are always enabled. Changes take effect on next login.
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Salto KS tab ─────────────────────────────────────────────────────────
+
+function SaltoTab({
+  settings,
+  saveSetting,
+  saving,
+}: {
+  settings: Record<string, string>;
+  saveSetting: (key: string, value: string) => Promise<void>;
+  saving: boolean;
+}) {
+  const [apiKey, setApiKey] = useState(settings.salto_api_key || "");
+  const [siteId, setSiteId] = useState(settings.salto_site_id || "");
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const [testError, setTestError] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  useEffect(() => {
+    setApiKey(settings.salto_api_key || "");
+    setSiteId(settings.salto_site_id || "");
+  }, [settings.salto_api_key, settings.salto_site_id]);
+
+  async function handleTest() {
+    setTesting(true);
+    setTestResult(null);
+    setTestError(false);
+    try {
+      const res = await api.get<{ ok: boolean; device_count?: number; error?: string }>("/salto/test");
+      if (res.data.ok) {
+        setTestResult(`Connected — ${res.data.device_count ?? 0} devices found`);
+        setTestError(false);
+      } else {
+        setTestResult(res.data.error || "Connection failed");
+        setTestError(true);
+      }
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setTestResult(detail || "Connection test failed");
+      setTestError(true);
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <div style={{ maxWidth: 500 }}>
+      <div style={{ fontSize: 13, color: "#0369a1", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8, padding: 12, marginBottom: 16 }}>
+        Salto KS Integration
+      </div>
+
+      <label style={labelStyle}>
+        API Key
+        <input
+          type="password"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          onBlur={() => saveSetting("salto_api_key", apiKey)}
+          placeholder="Enter Salto API key"
+          style={inputStyle}
+        />
+      </label>
+
+      <label style={labelStyle}>
+        Site ID
+        <input
+          type="text"
+          value={siteId}
+          onChange={(e) => setSiteId(e.target.value)}
+          onBlur={() => saveSetting("salto_site_id", siteId)}
+          placeholder="Enter Salto Site ID"
+          style={inputStyle}
+        />
+      </label>
+
+      <button
+        onClick={handleTest}
+        disabled={testing || saving}
+        style={{
+          padding: "8px 16px", background: "#003DA5", color: "white", border: "none",
+          borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 500,
+          opacity: testing ? 0.6 : 1, marginBottom: 12,
+        }}
+      >
+        {testing ? "Testing..." : "Test Connection"}
+      </button>
+
+      {testResult && (
+        <div style={{
+          padding: "10px 14px", borderRadius: 6, fontSize: 13, marginTop: 8,
+          background: testError ? "#fee2e2" : "#ecfdf5",
+          color: testError ? "#dc2626" : "#065f46",
+          border: `1px solid ${testError ? "#fca5a5" : "#a7f3d0"}`,
+        }}>
+          {testResult}
         </div>
       )}
     </div>

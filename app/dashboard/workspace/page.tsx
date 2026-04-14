@@ -62,6 +62,8 @@ export default function WorkspacePage() {
 
   // Detail
   const [detailBooking, setDetailBooking] = useState<RoomBooking | null>(null);
+  const [bookingAccesses, setBookingAccesses] = useState<{ id: number; member_name: string }[]>([]);
+  const [accessesLoading, setAccessesLoading] = useState(false);
 
   // Tenant/coin
   const [tenants, setTenants] = useState<
@@ -70,6 +72,16 @@ export default function WorkspacePage() {
   const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null);
   const [coinBalance, setCoinBalance] = useState(0);
   const [role, setRole] = useState("");
+
+  // ── Fetch accesses when detail booking opens ──────────────────────────
+  useEffect(() => {
+    if (!detailBooking) { setBookingAccesses([]); return; }
+    setAccessesLoading(true);
+    api.get<{ id: number; member_name: string }[]>(`/bookings/${detailBooking.id}/accesses`)
+      .then((r) => setBookingAccesses(r.data))
+      .catch(() => setBookingAccesses([]))
+      .finally(() => setAccessesLoading(false));
+  }, [detailBooking]);
 
   // ── Load ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -425,6 +437,23 @@ export default function WorkspacePage() {
               <div><strong>Tenant:</strong> {detailBooking.tenant_name || "—"}</div>
               <div><strong>Time:</strong> {detailBooking.start_time.slice(11, 16)} – {detailBooking.end_time.slice(11, 16)}</div>
               <div><strong>Date:</strong> {detailBooking.start_time.slice(0, 10)}</div>
+            </div>
+            {/* Salto access indicator */}
+            <div style={{ marginTop: 12 }}>
+              {accessesLoading ? (
+                <div style={{ fontSize: 12, color: "#9ca3af" }}>Loading access info...</div>
+              ) : bookingAccesses.length > 0 ? (
+                <div style={{ background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: 6, padding: "8px 12px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#065f46", marginBottom: 4 }}>Salto Access Granted</div>
+                  {bookingAccesses.map((a) => (
+                    <div key={a.id} style={{ fontSize: 12, color: "#047857" }}>{a.member_name}</div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ background: "#f3f4f6", border: "1px solid #e5e7eb", borderRadius: 6, padding: "8px 12px", fontSize: 12, color: "#6b7280" }}>
+                  No Salto access configured
+                </div>
+              )}
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
               <button onClick={() => handleCancel(detailBooking.id)}

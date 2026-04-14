@@ -1,8 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import type { Resource } from "@/lib/types";
+
+interface LockData {
+  id: number;
+  resource_id: number;
+  salto_device_id: string;
+  lock_name: string;
+}
+
+interface SaltoDevice {
+  id: string;
+  name: string;
+}
 
 interface Props {
   resource: Resource;
@@ -28,6 +40,53 @@ export default function EditResourceModal({ resource, onSave, onClose }: Props) 
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Salto lock state
+  const [lock, setLock] = useState<LockData | null>(null);
+  const [saltoDevices, setSaltoDevices] = useState<SaltoDevice[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState("");
+  const [lockName, setLockName] = useState("");
+  const [lockSaving, setLockSaving] = useState(false);
+  const [lockError, setLockError] = useState("");
+
+  useEffect(() => {
+    if (resource.resource_type === "meeting_room") {
+      api.get<LockData>(`/resources/${resource.id}/lock`).then((r) => setLock(r.data)).catch(() => {});
+      api.get<SaltoDevice[]>("/salto/devices").then((r) => setSaltoDevices(r.data)).catch(() => {});
+    }
+  }, [resource.id, resource.resource_type]);
+
+  async function handleSaveLock() {
+    if (!selectedDeviceId) return;
+    setLockSaving(true);
+    setLockError("");
+    try {
+      const res = await api.put<LockData>(`/resources/${resource.id}/lock`, {
+        salto_device_id: selectedDeviceId,
+        lock_name: lockName.trim() || selectedDeviceId,
+      });
+      setLock(res.data);
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setLockError(detail || "Failed to link lock");
+    } finally {
+      setLockSaving(false);
+    }
+  }
+
+  async function handleRemoveLock() {
+    if (!confirm("Remove Salto lock from this resource?")) return;
+    setLockSaving(true);
+    setLockError("");
+    try {
+      await api.delete(`/resources/${resource.id}/lock`);
+      setLock(null);
+    } catch {
+      setLockError("Failed to remove lock");
+    } finally {
+      setLockSaving(false);
+    }
+  }
 
   const handleSave = async () => {
     setSaving(true);
@@ -289,6 +348,46 @@ export default function EditResourceModal({ resource, onSave, onClose }: Props) 
             </label>
           </div>
         </div>
+
+        {/* Access Control — Salto lock (meeting rooms only) */}
+        {resource.resource_type === "meeting_room" && (
+          <div style={{ marginTop: 20, borderTop: "1px solid #e5e7eb", paddingTop: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#374151", marginBottom: 10 }}>Access Control</div>
+            {lockError && (
+              <div style={{ background: "#fee2e2", color: "#dc2626", padding: "6px 10px", borderRadius: 6, marginBottom: 10, fontSize: 12 }}>{lockError}</div>
+            )}
+            {lock ? (
+              <div style={{ background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: 8, padding: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#065f46" }}>Salto lock configured</div>
+                  <div style={{ fontSize: 12, color: "#047857" }}>Device: {lock.lock_name} ({lock.salto_device_id})</div>
+                </div>
+                <button onClick={handleRemoveLock} disabled={lockSaving}
+                  style={{ padding: "4px 10px", border: "1px solid #fca5a5", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, color: "#dc2626", opacity: lockSaving ? 0.5 : 1 }}>
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <label style={labelStyle}>
+                  Salto Device
+                  <select value={selectedDeviceId} onChange={(e) => setSelectedDeviceId(e.target.value)} style={inputStyle}>
+                    <option value="">-- Select device --</option>
+                    {saltoDevices.map((d) => <option key={d.id} value={d.id}>{d.name} ({d.id})</option>)}
+                  </select>
+                </label>
+                <label style={labelStyle}>
+                  Lock Name
+                  <input value={lockName} onChange={(e) => setLockName(e.target.value)} placeholder="e.g. Meeting Room A lock" style={inputStyle} />
+                </label>
+                <button onClick={handleSaveLock} disabled={lockSaving || !selectedDeviceId}
+                  style={{ alignSelf: "flex-start", padding: "6px 14px", background: "#003DA5", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, opacity: lockSaving || !selectedDeviceId ? 0.5 : 1 }}>
+                  {lockSaving ? "Linking..." : "Link Lock"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         <div
           style={{

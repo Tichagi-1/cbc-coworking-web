@@ -142,6 +142,12 @@ export default function TenantsPage() {
                         >
                           Coins
                         </button>
+                        <a
+                          href={`/dashboard/tenants/${t.id}/members`}
+                          style={{padding:'4px 10px', border:'1px solid #d1d5db', borderRadius:6, background:'white', cursor:'pointer', fontSize:12, fontWeight:500, textDecoration:'none', color:'#374151'}}
+                        >
+                          Members
+                        </a>
                       </div>
                     </td>
                   )}
