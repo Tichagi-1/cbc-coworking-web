@@ -1015,10 +1015,10 @@ export default function MapPage() {
               }}
             >
               <div style={{ fontSize: 14, fontWeight: 600, color: "#dc2626" }}>
-                Delete floor and all data
+                Delete floor permanently
               </div>
               <div style={{ fontSize: 12, color: "#991b1b", marginTop: 4 }}>
-                Permanently removes the floor, all zones, resources, and bookings. Cannot be undone.
+                Removes the floor and all zones. Resources stay in the catalog. Bookings are cancelled. Cannot be undone.
               </div>
             </button>
 
