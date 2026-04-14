@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
-const TABS = ["General", "Branding", "Operations", "Roles", "Salto"] as const;
+const TABS = ["General", "Branding", "Operations", "Roles", "Salto", "Users"] as const;
 type Tab = (typeof TABS)[number];
 
 const PERMISSIONS_LIST = [
@@ -328,6 +328,193 @@ export default function SettingsPage() {
           </table>
           <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>
             Admin permissions are always enabled. Changes take effect on next login.
+          </div>
+        </div>
+      )}
+
+      {/* Users */}
+      {tab === "Users" && <UsersTab />}
+    </div>
+  );
+}
+
+// ── Users management tab ────────────────────────────────────────────────
+
+interface UserRow {
+  id: number;
+  email: string;
+  name: string;
+  role: string;
+  is_active: boolean;
+  created_at: string | null;
+}
+
+const ROLE_BADGE: Record<string, string> = {
+  admin: "background:#fef2f2;color:#dc2626",
+  manager: "background:#f5f3ff;color:#7c3aed",
+  receptionist: "background:#eff6ff;color:#2563eb",
+  tenant: "background:#f3f4f6;color:#6b7280",
+};
+
+function UsersTab() {
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [addForm, setAddForm] = useState({ name: "", email: "", password: "", role: "tenant" });
+  const [addSaving, setAddSaving] = useState(false);
+  const [addError, setAddError] = useState("");
+  const [toast, setToast] = useState("");
+
+  const currentUserId = (() => {
+    try {
+      const token = document.cookie.match(/cbc_token=([^;]+)/)?.[1];
+      if (!token) return null;
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      return parseInt(payload.sub);
+    } catch { return null; }
+  })();
+
+  const loadUsers = () => {
+    api.get<UserRow[]>("/auth/users").then((r) => setUsers(r.data)).catch(() => {});
+  };
+  useEffect(() => { loadUsers(); }, []);
+
+  const handleAdd = async () => {
+    setAddSaving(true);
+    setAddError("");
+    try {
+      await api.post("/auth/register", addForm);
+      setShowAdd(false);
+      setAddForm({ name: "", email: "", password: "", role: "tenant" });
+      loadUsers();
+      setToast("User created");
+      setTimeout(() => setToast(""), 3000);
+    } catch (e: unknown) {
+      setAddError((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed");
+    } finally {
+      setAddSaving(false);
+    }
+  };
+
+  const changeRole = async (userId: number, newRole: string) => {
+    try {
+      await api.patch(`/auth/users/${userId}`, { role: newRole });
+      loadUsers();
+    } catch (e: unknown) {
+      alert((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed");
+    }
+  };
+
+  const toggleActive = async (userId: number, active: boolean) => {
+    if (!active && !confirm("Deactivate this user? They will not be able to log in.")) return;
+    try {
+      await api.patch(`/auth/users/${userId}`, { is_active: active });
+      loadUsers();
+    } catch (e: unknown) {
+      alert((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed");
+    }
+  };
+
+  const iStyle: React.CSSProperties = {
+    display: "block", width: "100%", marginTop: 4, padding: "8px 10px",
+    border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>System Users</div>
+        <button onClick={() => setShowAdd(true)}
+          style={{ padding: "6px 14px", background: "#003DA5", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13 }}>
+          + Add User
+        </button>
+      </div>
+
+      {toast && <div style={{ background: "#ecfdf5", border: "1px solid #a7f3d0", color: "#065f46", padding: "8px 12px", borderRadius: 6, marginBottom: 12, fontSize: 13 }}>{toast}</div>}
+
+      <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ borderBottom: "2px solid #e5e7eb" }}>
+            {["Name", "Email", "Role", "Status", "Actions"].map((h) => (
+              <th key={h} style={{ textAlign: "left", padding: "8px 12px", fontWeight: 600, color: "#374151" }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {users.map((u) => {
+            const isSelf = u.id === currentUserId;
+            return (
+              <tr key={u.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                <td style={{ padding: "8px 12px", fontWeight: 500 }}>{u.name}</td>
+                <td style={{ padding: "8px 12px", color: "#6b7280" }}>{u.email}</td>
+                <td style={{ padding: "8px 12px" }}>
+                  {isSelf ? (
+                    <span style={{ padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 600, ...(ROLE_BADGE[u.role] ? { cssText: ROLE_BADGE[u.role] } : {}) } as React.CSSProperties}>
+                      {u.role}
+                    </span>
+                  ) : (
+                    <select value={u.role} onChange={(e) => changeRole(u.id, e.target.value)}
+                      style={{ padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 12, cursor: "pointer" }}>
+                      {["admin", "manager", "receptionist", "tenant"].map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                  )}
+                </td>
+                <td style={{ padding: "8px 12px" }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: u.is_active ? "#16a34a" : "#dc2626" }}>
+                    {u.is_active ? "Active" : "Inactive"}
+                  </span>
+                </td>
+                <td style={{ padding: "8px 12px" }}>
+                  {!isSelf && (
+                    <button onClick={() => toggleActive(u.id, !u.is_active)}
+                      style={{ fontSize: 12, padding: "3px 10px", border: "1px solid #d1d5db", borderRadius: 4, background: "white", cursor: "pointer",
+                        color: u.is_active ? "#dc2626" : "#16a34a" }}>
+                      {u.is_active ? "Deactivate" : "Activate"}
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      {/* Add User Modal */}
+      {showAdd && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)" }}
+          onMouseDown={() => setShowAdd(false)}>
+          <div style={{ background: "white", borderRadius: 12, padding: 28, width: 400, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
+            onMouseDown={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 600 }}>Add User</h3>
+            {addError && <div style={{ background: "#fee2e2", color: "#dc2626", padding: "8px 12px", borderRadius: 6, marginBottom: 12, fontSize: 13 }}>{addError}</div>}
+            <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+              Name
+              <input value={addForm.name} onChange={(e) => setAddForm((p) => ({ ...p, name: e.target.value }))} style={iStyle} />
+            </label>
+            <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+              Email
+              <input type="email" value={addForm.email} onChange={(e) => setAddForm((p) => ({ ...p, email: e.target.value }))} style={iStyle} />
+            </label>
+            <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+              Password
+              <input type="password" value={addForm.password} onChange={(e) => setAddForm((p) => ({ ...p, password: e.target.value }))} style={iStyle} />
+            </label>
+            <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+              Role
+              <select value={addForm.role} onChange={(e) => setAddForm((p) => ({ ...p, role: e.target.value }))} style={iStyle}>
+                {["admin", "manager", "receptionist", "tenant"].map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </label>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+              <button onClick={() => setShowAdd(false)} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Cancel</button>
+              <button onClick={handleAdd} disabled={addSaving || !addForm.name || !addForm.email || !addForm.password}
+                style={{ padding: "8px 16px", background: "#003DA5", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, opacity: addSaving ? 0.7 : 1 }}>
+                {addSaving ? "Creating..." : "Create User"}
+              </button>
+            </div>
           </div>
         </div>
       )}
