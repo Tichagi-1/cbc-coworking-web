@@ -79,6 +79,7 @@ export default function ResourcesPage() {
   const [floors, setFloors] = useState<Floor[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [activeTab, setActiveTab] = useState<"all" | ResourceType>("all");
+  const [floorFilter, setFloorFilter] = useState<number | "all" | "none">("all");
   const [selected, setSelected] = useState<Resource | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,13 +110,12 @@ export default function ResourcesPage() {
       .catch(() => undefined);
   }, []);
 
-  const filtered = useMemo(
-    () =>
-      activeTab === "all"
-        ? resources
-        : resources.filter((r) => r.resource_type === activeTab),
-    [resources, activeTab]
-  );
+  const filtered = useMemo(() => {
+    let list = activeTab === "all" ? resources : resources.filter((r) => r.resource_type === activeTab);
+    if (floorFilter === "none") list = list.filter((r) => !r.floor_id);
+    else if (floorFilter !== "all") list = list.filter((r) => r.floor_id === floorFilter);
+    return list;
+  }, [resources, activeTab, floorFilter]);
 
   return (
     <div className="p-6">
@@ -160,6 +160,23 @@ export default function ResourcesPage() {
             </button>
           );
         })}
+      </div>
+
+      {/* Floor filter pills */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 12, flexWrap: "wrap" }}>
+        {[{ id: "all" as const, label: "All Floors" }, ...floors.map((f) => ({ id: f.id, label: f.name || `Floor ${f.number}` })), { id: "none" as const, label: "Unassigned" }].map((item) => (
+          <button
+            key={String(item.id)}
+            onClick={() => setFloorFilter(item.id as number | "all" | "none")}
+            style={{
+              padding: "4px 12px", borderRadius: 999, fontSize: 12, border: "none", cursor: "pointer",
+              background: floorFilter === item.id ? "#003DA5" : "#f3f4f6",
+              color: floorFilter === item.id ? "white" : "#374151",
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
 
       {error && (

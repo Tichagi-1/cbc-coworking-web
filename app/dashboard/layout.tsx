@@ -111,6 +111,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
+        {!collapsed && (
+          <div style={{ padding: "0 12px 8px", fontSize: 10, color: "rgba(255,255,255,0.25)" }}>
+            MVP v1.0 · CBC Coworking OS
+          </div>
+        )}
         <button
           onClick={toggleSidebar}
           style={{

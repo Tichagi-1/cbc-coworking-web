@@ -38,8 +38,16 @@ export default function EditResourceModal({ resource, onSave, onClose }: Props) 
   const [residentDiscount, setResidentDiscount] = useState(
     resource.resident_discount_pct || 0
   );
+  const [floorId, setFloorId] = useState<number | null>(resource.floor_id ?? null);
+  const [floors, setFloors] = useState<{ id: number; name: string | null; number: number }[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.get<{ id: number; name: string | null; number: number }[]>("/buildings/1/floors")
+      .then((r) => setFloors(r.data))
+      .catch(() => {});
+  }, []);
 
   // Photos
   const [photos, setPhotos] = useState<string[]>(resource.photos || []);
@@ -149,6 +157,7 @@ export default function EditResourceModal({ resource, onSave, onClose }: Props) 
       }
       payload.min_advance_minutes = minAdvance;
       payload.resident_discount_pct = residentDiscount;
+      payload.floor_id = floorId;
       const res = await api.patch<Resource>(
         `/resources/${resource.id}`,
         payload
@@ -250,6 +259,20 @@ export default function EditResourceModal({ resource, onSave, onClose }: Props) 
               onChange={(e) => setName(e.target.value)}
               style={inputStyle}
             />
+          </label>
+
+          <label style={labelStyle}>
+            Floor
+            <select
+              value={floorId ?? ""}
+              onChange={(e) => setFloorId(e.target.value ? +e.target.value : null)}
+              style={inputStyle}
+            >
+              <option value="">— Not assigned —</option>
+              {floors.map((f) => (
+                <option key={f.id} value={f.id}>{f.name || `Floor ${f.number}`}</option>
+              ))}
+            </select>
           </label>
 
           <label style={labelStyle}>

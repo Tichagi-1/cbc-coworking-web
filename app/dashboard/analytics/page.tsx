@@ -48,6 +48,12 @@ export default function AnalyticsPage() {
       </div>
     );
   }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [vacancy, setVacancy] = useState<any>(null);
+  useEffect(() => {
+    api.get("/analytics/vacancy").then((r) => setVacancy(r.data)).catch(() => {});
+  }, []);
+
   if (!data) return null;
 
   const { kpi, bookings_by_day, room_utilization, coin_economy, recent_bookings, tenant_rankings } = data;
@@ -82,6 +88,47 @@ export default function AnalyticsPage() {
         <KPICard label="Rooms Free" value={`${kpi.rooms_free_now}/${kpi.total_rooms}`} sub="now"
           color={kpi.rooms_free_now > 0 ? "#16a34a" : "#dc2626"} />
       </div>
+
+      {/* Vacancy overview */}
+      {vacancy && (
+        <div style={{ background: "white", borderRadius: 10, padding: 20, border: "1px solid #e5e7eb", marginBottom: 16 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, color: "#111827" }}>Vacancy Overview</div>
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
+              <span style={{ fontWeight: 500 }}>Building Total</span>
+              <span style={{ color: "#6b7280" }}>
+                {vacancy.building.occupied}/{vacancy.building.total} occupied ({vacancy.building.occupancy_rate}%)
+              </span>
+            </div>
+            <div style={{ height: 10, background: "#f3f4f6", borderRadius: 5, overflow: "hidden" }}>
+              <div style={{
+                height: "100%", borderRadius: 5, transition: "width 0.5s ease",
+                background: vacancy.building.occupancy_rate > 70 ? "#22c55e" : vacancy.building.occupancy_rate > 40 ? "#f59e0b" : "#ef4444",
+                width: `${vacancy.building.occupancy_rate}%`,
+              }} />
+            </div>
+            <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: 12 }}>
+              <span style={{ color: "#22c55e" }}>Occupied: {vacancy.building.occupied}</span>
+              <span style={{ color: "#ef4444" }}>Vacant: {vacancy.building.vacant}</span>
+              <span style={{ color: "#f59e0b" }}>Reserved: {vacancy.building.reserved}</span>
+            </div>
+          </div>
+          {vacancy.by_floor.map((f: any) => (
+            <div key={f.floor_id} style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                <span style={{ color: "#374151", fontWeight: 500 }}>{f.floor_name}</span>
+                <span style={{ color: "#6b7280" }}>{f.occupied}/{f.total} · {f.occupancy_rate}%</span>
+              </div>
+              <div style={{ height: 7, background: "#f3f4f6", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: 4, background: "#003DA5", width: `${f.occupancy_rate}%` }} />
+              </div>
+            </div>
+          ))}
+          {vacancy.unassigned_count > 0 && (
+            <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>{vacancy.unassigned_count} resources not assigned to a floor</div>
+          )}
+        </div>
+      )}
 
       {/* Charts row */}
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginBottom: 16 }}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
 import { api, TOKEN_COOKIE, ROLE_COOKIE, NAME_COOKIE } from "@/lib/api";
@@ -10,6 +10,15 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [companyName, setCompanyName] = useState("CBC");
+  const [logoUrl, setLogoUrl] = useState("");
+
+  useEffect(() => {
+    api.get<Record<string, string>>("/settings").then((r) => {
+      if (r.data.company_name) setCompanyName(r.data.company_name);
+      if (r.data.logo_url) setLogoUrl(r.data.logo_url);
+    }).catch(() => {});
+  }, []);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,7 +56,15 @@ export default function LoginPage() {
       {/* Left: dark brand panel */}
       <div className="hidden md:flex md:w-1/2 lg:w-2/5 bg-cbc-midnight text-white flex-col justify-between p-12">
         <div>
-          <div className="text-3xl font-bold tracking-tight">CBC</div>
+          {logoUrl ? (
+            <img
+              src={logoUrl.startsWith("http") ? logoUrl : `${process.env.NEXT_PUBLIC_API_URL || ""}${logoUrl}`}
+              alt={companyName}
+              style={{ height: 48, objectFit: "contain" }}
+            />
+          ) : (
+            <div className="text-3xl font-bold tracking-tight">{companyName}</div>
+          )}
           <div className="text-sm uppercase tracking-widest text-gray-400 mt-1">
             Coworking OS
           </div>
