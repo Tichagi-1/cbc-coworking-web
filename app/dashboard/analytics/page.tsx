@@ -56,7 +56,12 @@ export default function AnalyticsPage() {
 
   if (!data) return null;
 
-  const { kpi, bookings_by_day, room_utilization, coin_economy, recent_bookings, tenant_rankings } = data;
+  const kpi = data?.kpi || {};
+  const bookings_by_day = data?.bookings_by_day || [];
+  const room_utilization = data?.room_utilization || [];
+  const coin_economy = data?.coin_economy || { total_balance: 0, spent_month: 0, revenue_month: 0 };
+  const recent_bookings = data?.recent_bookings || [];
+  const tenant_rankings = data?.tenant_rankings || [];
 
   return (
     <div style={{ padding: "20px 24px", background: "#f9fafb", minHeight: "calc(100vh - 64px)", overflowY: "auto" }}>
@@ -79,18 +84,18 @@ export default function AnalyticsPage() {
 
       {/* KPI Row */}
       <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-        <KPICard label="Occupancy Rate" value={`${kpi.occupancy_rate}%`} sub="of all resources"
-          color={kpi.occupancy_rate > 70 ? "#16a34a" : kpi.occupancy_rate > 40 ? "#d97706" : "#dc2626"} />
-        <KPICard label="Active Tenants" value={kpi.active_tenants} sub="companies" />
-        <KPICard label="Bookings Today" value={kpi.bookings_today} sub="sessions" />
-        <KPICard label="Coins Spent" value={kpi.coins_spent_month.toLocaleString()} sub="this month" color={ACCENT} />
-        <KPICard label="Cash Revenue" value={fmtUZS(kpi.revenue_month_uzs)} sub="this month" color="#16a34a" />
-        <KPICard label="Rooms Free" value={`${kpi.rooms_free_now}/${kpi.total_rooms}`} sub="now"
-          color={kpi.rooms_free_now > 0 ? "#16a34a" : "#dc2626"} />
+        <KPICard label="Occupancy Rate" value={`${kpi.occupancy_rate ?? 0}%`} sub="of all resources"
+          color={(kpi.occupancy_rate ?? 0) > 70 ? "#16a34a" : (kpi.occupancy_rate ?? 0) > 40 ? "#d97706" : "#dc2626"} />
+        <KPICard label="Active Tenants" value={kpi.active_tenants ?? 0} sub="companies" />
+        <KPICard label="Bookings Today" value={kpi.bookings_today ?? 0} sub="sessions" />
+        <KPICard label="Coins Spent" value={(kpi.coins_spent_month ?? 0).toLocaleString()} sub="this month" color={ACCENT} />
+        <KPICard label="Cash Revenue" value={fmtUZS(kpi.revenue_month_uzs ?? 0)} sub="this month" color="#16a34a" />
+        <KPICard label="Rooms Free" value={`${kpi.rooms_free_now ?? 0}/${kpi.total_rooms ?? 0}`} sub="now"
+          color={(kpi.rooms_free_now ?? 0) > 0 ? "#16a34a" : "#dc2626"} />
       </div>
 
       {/* Vacancy overview */}
-      {vacancy && (
+      {vacancy?.building && (
         <div style={{ background: "white", borderRadius: 10, padding: 20, border: "1px solid #e5e7eb", marginBottom: 16 }}>
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, color: "#111827" }}>Vacancy Overview</div>
 
