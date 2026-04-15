@@ -4,20 +4,11 @@ import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import { api } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
-import type { Plan, Tenant } from "@/lib/types";
+import type { Tenant, TenantUnitSummary } from "@/lib/types";
 
-interface TenantUnit {
-  id: number;
-  name: string;
-  resource_type: string;
-  floor_name: string | null;
-  area_m2: number | null;
-}
+type TenantWithUnits = Tenant;
 
-interface TenantWithUnits extends Tenant {
-  units?: TenantUnit[];
-  unit_count?: number;
-}
+const fmtUZS = (n: number) => `${Math.round(n).toLocaleString()} сум`;
 
 interface CoinSummary {
   tenant_id: number;
@@ -123,8 +114,9 @@ export default function TenantsPage() {
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Company</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Units</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Plan</th>
+                <th className="text-right px-4 py-3 font-semibold text-gray-600">Monthly Rate</th>
+                <th className="text-right px-4 py-3 font-semibold text-gray-600">Монет/мес</th>
                 <th className="text-right px-4 py-3 font-semibold text-gray-600">Coin Balance</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Last Reset</th>
                 <th className="text-center px-4 py-3 font-semibold text-gray-600">Resident</th>
                 {isAdmin && (
                   <th className="text-center px-4 py-3 font-semibold text-gray-600">Actions</th>
@@ -144,8 +136,11 @@ export default function TenantsPage() {
                     {t.units && t.units.length > 0 ? (
                       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                         {t.units.map((u) => (
-                          <span key={u.id} style={{ padding: "1px 6px", borderRadius: 4, background: "#eff6ff", color: "#1e40af", fontWeight: 600, fontSize: 10 }}>
+                          <span key={u.resource_id}
+                            title={`${u.plan_name ? u.plan_name + " · " : ""}${fmtUZS(u.monthly_rate)}/мес`}
+                            style={{ padding: "1px 6px", borderRadius: 4, background: "#eff6ff", color: "#1e40af", fontWeight: 600, fontSize: 10 }}>
                             {u.name}
+                            {u.plan_name && <span style={{ fontWeight: 400, marginLeft: 3, opacity: 0.7 }}>· {u.plan_name}</span>}
                           </span>
                         ))}
                       </div>
@@ -159,14 +154,17 @@ export default function TenantsPage() {
                         {t.plan_type}
                       </span>
                     ) : (
-                      <span className="text-gray-400">--</span>
+                      <span className="text-gray-400">—</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-700">
+                    {t.total_monthly_rate > 0 ? fmtUZS(t.total_monthly_rate) : <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-700">
+                    {t.monthly_coin_allowance > 0 ? Math.round(t.monthly_coin_allowance).toLocaleString() : <span className="text-gray-400">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold" style={{ color: balanceColor(t.coin_balance) }}>
                     {Math.round(t.coin_balance).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-gray-500">
-                    {t.coin_last_reset ? dayjs(t.coin_last_reset).format("MMM D, YYYY") : "--"}
                   </td>
                   <td className="px-4 py-3 text-center">
                     {t.is_resident ? (
@@ -369,7 +367,7 @@ function CoinModal({
     }
   }
 
-  const projectedCoins = summary?.projected_coins ?? Math.round(tenant.monthly_rate * 0.25);
+  const projectedCoins = summary?.projected_coins ?? Math.round(tenant.monthly_coin_allowance || 0);
   const inputStyle: React.CSSProperties = {
     display: "block", width: "100%", marginTop: 4, padding: "8px 10px",
     border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
@@ -399,6 +397,41 @@ function CoinModal({
           </div>
           <div style={{ fontSize: 12, color: "#92400e" }}>coins</div>
         </div>
+
+        {/* Per-unit breakdown */}
+        {tenant.units && tenant.units.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#374151", marginBottom: 8 }}>Breakdown by unit</div>
+            <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ color: "#6b7280", textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
+                  <th style={{ padding: "4px 6px", fontWeight: 500 }}>Unit</th>
+                  <th style={{ padding: "4px 6px", fontWeight: 500 }}>Plan</th>
+                  <th style={{ padding: "4px 6px", fontWeight: 500, textAlign: "right" }}>Rate/mo</th>
+                  <th style={{ padding: "4px 6px", fontWeight: 500, textAlign: "right" }}>Coin %</th>
+                  <th style={{ padding: "4px 6px", fontWeight: 500, textAlign: "right" }}>Coins/mo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tenant.units.map((u: TenantUnitSummary) => (
+                  <tr key={u.resource_id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "4px 6px", color: "#374151", fontWeight: 500 }}>{u.name}</td>
+                    <td style={{ padding: "4px 6px", color: "#6b7280" }}>{u.plan_name || "—"}</td>
+                    <td style={{ padding: "4px 6px", textAlign: "right", color: "#374151" }}>{fmtUZS(u.monthly_rate)}</td>
+                    <td style={{ padding: "4px 6px", textAlign: "right", color: "#6b7280" }}>{u.coin_pct}%</td>
+                    <td style={{ padding: "4px 6px", textAlign: "right", color: "#003DA5", fontWeight: 600 }}>{Math.round(u.coin_allowance).toLocaleString()}</td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: "2px solid #d1d5db", background: "#f9fafb" }}>
+                  <td colSpan={2} style={{ padding: "6px", fontWeight: 700, color: "#111827" }}>Total</td>
+                  <td style={{ padding: "6px", textAlign: "right", fontWeight: 700, color: "#111827" }}>{fmtUZS(tenant.total_monthly_rate)}</td>
+                  <td />
+                  <td style={{ padding: "6px", textAlign: "right", fontWeight: 700, color: "#003DA5" }}>{Math.round(tenant.monthly_coin_allowance).toLocaleString()}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {error && (
           <div style={{ background: "#fee2e2", color: "#dc2626", padding: "8px 12px", borderRadius: 6, marginBottom: 12, fontSize: 13 }}>{error}</div>
@@ -499,41 +532,17 @@ function CoinModal({
 // ── Create tenant modal ───────────────────────────────────────────────────
 
 function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => Promise<void> }) {
-  const [plans, setPlans] = useState<Plan[]>([]);
   const [tenantType, setTenantType] = useState("company");
   const [companyName, setCompanyName] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
-  const [unitNumber, setUnitNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [isResident, setIsResident] = useState(true);
-  const [planId, setPlanId] = useState<number | null>(null);
-  const [monthlyRate, setMonthlyRate] = useState(0);
-  const [seatCount, setSeatCount] = useState(1);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [userName, setUserName] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    api.get<Plan[]>("/plans", { params: { building_id: 1 } })
-      .then((r) => setPlans(r.data))
-      .catch(() => {});
-  }, []);
-
-  const selectedPlan = plans.find((p) => p.id === planId) ?? null;
-
-  useEffect(() => {
-    if (!selectedPlan) return;
-    if (selectedPlan.billing_mode === "per_seat") {
-      setMonthlyRate(selectedPlan.base_rate_uzs * seatCount);
-    } else {
-      setMonthlyRate(selectedPlan.base_rate_uzs);
-    }
-  }, [selectedPlan, seatCount]);
-
-  const coinPreview = Math.round(monthlyRate * ((selectedPlan?.coin_pct ?? 25) / 100));
 
   async function handleSubmit() {
     if (!companyName.trim() || !email.trim() || !password || !userName.trim()) {
@@ -543,29 +552,23 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
     setSaving(true);
     setError("");
     try {
-      // Step 1: Create user account
       const userRes = await api.post<{ access_token: string; role: string; name: string }>("/auth/register", {
         email: email.trim(),
         password,
         name: userName.trim(),
         role: "tenant",
       });
-      // Extract user_id from token payload (sub claim)
       const token = userRes.data.access_token;
       const payload = JSON.parse(atob(token.split(".")[1]));
       const userId = parseInt(payload.sub);
 
-      // Step 2: Create tenant
       await api.post("/tenants/", {
         user_id: userId,
         tenant_type: tenantType,
         company_name: companyName.trim(),
         contact_name: tenantType === "company" ? (contactName.trim() || null) : null,
         contact_phone: contactPhone.trim() || null,
-        unit_number: unitNumber.trim() || null,
         notes: notes.trim() || null,
-        plan_type: selectedPlan?.name || null,
-        monthly_rate: monthlyRate,
         is_resident: isResident,
       });
 
@@ -646,11 +649,6 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
         </div>
 
         <label style={labelStyle}>
-          Office / Unit Number
-          <input value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} placeholder="e.g. 417, Floor 3, Desk A4" style={inputStyle} />
-        </label>
-
-        <label style={labelStyle}>
           Notes
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any additional notes..." rows={3}
             style={{ ...inputStyle, resize: "vertical" as const }} />
@@ -661,29 +659,8 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
           Is Resident
         </label>
 
-        <label style={labelStyle}>
-          Plan
-          <select value={planId ?? ""} onChange={(e) => setPlanId(e.target.value ? +e.target.value : null)} style={inputStyle}>
-            <option value="">-- No plan --</option>
-            {plans.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.billing_mode})</option>)}
-          </select>
-        </label>
-
-        {selectedPlan?.billing_mode === "per_seat" && (
-          <label style={labelStyle}>
-            Seats
-            <input type="number" min={1} value={seatCount} onChange={(e) => setSeatCount(+e.target.value || 1)} style={inputStyle} />
-          </label>
-        )}
-
-        <label style={labelStyle}>
-          Monthly Rate (сум)
-          <input type="number" min={0} value={monthlyRate} onChange={(e) => setMonthlyRate(+e.target.value)} style={inputStyle} />
-        </label>
-
-        <div style={{ background: "#fef3c7", padding: 10, borderRadius: 6, fontSize: 12, color: "#92400e", marginBottom: 16 }}>
-          Will receive <strong>{coinPreview.toLocaleString()}</strong> coins on first reset
-          ({selectedPlan?.coin_pct ?? 25}% of {monthlyRate.toLocaleString()} сум)
+        <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", padding: 10, borderRadius: 6, fontSize: 12, color: "#0369a1", marginBottom: 16 }}>
+          Plan and monthly rate are derived from the units assigned to this tenant. Assign units on the Floor Map or Resources page after creation.
         </div>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
@@ -702,9 +679,6 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
 function EditTenantModal({ tenant, onClose, onSaved }: { tenant: Tenant; onClose: () => void; onSaved: () => Promise<void> }) {
   const [companyName, setCompanyName] = useState(tenant.company_name);
   const [contactName, setContactName] = useState(tenant.contact_name || "");
-  const [planType, setPlanType] = useState(tenant.plan_type || "");
-  const [monthlyRate, setMonthlyRate] = useState(tenant.monthly_rate);
-  const [unitNumber, setUnitNumber] = useState(tenant.unit_number || "");
   const [notes, setNotes] = useState(tenant.notes || "");
   const [isResident, setIsResident] = useState(tenant.is_resident);
   const [saving, setSaving] = useState(false);
@@ -717,10 +691,7 @@ function EditTenantModal({ tenant, onClose, onSaved }: { tenant: Tenant; onClose
       await api.patch(`/tenants/${tenant.id}`, {
         company_name: companyName.trim(),
         contact_name: contactName.trim() || null,
-        plan_type: planType.trim() || null,
-        monthly_rate: monthlyRate,
         is_resident: isResident,
-        unit_number: unitNumber.trim() || null,
         notes: notes.trim() || null,
       });
       await onSaved();
@@ -755,25 +726,20 @@ function EditTenantModal({ tenant, onClose, onSaved }: { tenant: Tenant; onClose
           <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} style={inputStyle} />
         </label>
         <label style={labelStyle}>
-          Office / Unit Number
-          <input value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} placeholder="e.g. 417, Floor 3" style={inputStyle} />
-        </label>
-        <label style={labelStyle}>
           Notes
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any notes..." rows={2} style={{ ...inputStyle, resize: "vertical" as const }} />
-        </label>
-        <label style={labelStyle}>
-          Plan Type
-          <input type="text" value={planType} onChange={(e) => setPlanType(e.target.value)} placeholder="e.g. Enterprise" style={inputStyle} />
-        </label>
-        <label style={labelStyle}>
-          Monthly Rate (сум)
-          <input type="number" min={0} value={monthlyRate} onChange={(e) => setMonthlyRate(+e.target.value)} style={inputStyle} />
         </label>
         <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8 }}>
           <input type="checkbox" checked={isResident} onChange={(e) => setIsResident(e.target.checked)} />
           Is Resident
         </label>
+
+        <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 6, padding: 10, marginTop: 8, fontSize: 12, color: "#6b7280" }}>
+          <div><strong>Plan:</strong> {tenant.plan_type || "—"}</div>
+          <div><strong>Monthly rate:</strong> {tenant.total_monthly_rate > 0 ? fmtUZS(tenant.total_monthly_rate) : "—"}</div>
+          <div><strong>Coins/мес:</strong> {tenant.monthly_coin_allowance > 0 ? Math.round(tenant.monthly_coin_allowance).toLocaleString() : "—"}</div>
+          <div style={{ marginTop: 4, fontStyle: "italic" }}>Computed from {tenant.unit_count ?? 0} assigned unit(s). Edit rates on the Resources / Floor Map.</div>
+        </div>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
           <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Cancel</button>

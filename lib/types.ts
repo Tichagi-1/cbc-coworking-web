@@ -150,19 +150,36 @@ export interface AuthResponse {
   permissions: string[];
 }
 
+export interface TenantUnitSummary {
+  resource_id: number;
+  name: string;
+  type: string;
+  monthly_rate: number;
+  plan_name: string | null;
+  coin_pct: number;
+  coin_allowance: number;
+  floor_name?: string | null;
+}
+
 export interface Tenant {
   id: number;
   user_id: number;
   tenant_type: string;
   company_name: string;
   contact_name: string | null;
+  // Computed from assigned resources (read-only)
   plan_type: string | null;
-  monthly_rate: number;
+  total_monthly_rate: number;
+  monthly_coin_allowance: number;
+  monthly_rate: number; // alias of total_monthly_rate for back-compat
+  // Mutable
   coin_balance: number;
   coin_last_reset: string | null;
   is_resident: boolean;
   unit_number: string | null;
   notes: string | null;
+  units?: TenantUnitSummary[];
+  unit_count?: number;
 }
 
 export interface AvailabilitySlot {
