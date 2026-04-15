@@ -147,6 +147,7 @@ export interface AuthResponse {
   token_type: string;
   role: UserRole;
   name: string;
+  permissions: string[];
 }
 
 export interface Tenant {

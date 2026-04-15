@@ -3,7 +3,21 @@
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import { api } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
 import type { Plan, Tenant } from "@/lib/types";
+
+interface TenantUnit {
+  id: number;
+  name: string;
+  resource_type: string;
+  floor_name: string | null;
+  area_m2: number | null;
+}
+
+interface TenantWithUnits extends Tenant {
+  units?: TenantUnit[];
+  unit_count?: number;
+}
 
 interface CoinSummary {
   tenant_id: number;
@@ -30,26 +44,26 @@ function balanceColor(bal: number): string {
 }
 
 export default function TenantsPage() {
-  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [tenants, setTenants] = useState<TenantWithUnits[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [coinModalTenant, setCoinModalTenant] = useState<Tenant | null>(null);
+  const [coinModalTenant, setCoinModalTenant] = useState<TenantWithUnits | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [editTenant, setEditTenant] = useState<Tenant | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Tenant | null>(null);
+  const [editTenant, setEditTenant] = useState<TenantWithUnits | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TenantWithUnits | null>(null);
   const [deletingTenant, setDeletingTenant] = useState(false);
-  const [role, setRole] = useState("");
+
+  const canCreate = hasPermission("create_tenant");
+  const canEdit = hasPermission("edit_tenant");
+  const isAdmin = canCreate || canEdit;
 
   useEffect(() => {
-    setRole(document.cookie.match(/cbc_role=([^;]+)/)?.[1] || "");
     loadTenants();
   }, []);
 
-  const isAdmin = role === "admin" || role === "manager";
-
   async function loadTenants() {
     try {
-      const res = await api.get<Tenant[]>("/tenants/");
+      const res = await api.get<TenantWithUnits[]>("/tenants/");
       setTenants(res.data);
     } catch (e) {
       setError((e as Error)?.message || "Failed to load tenants");
@@ -75,7 +89,7 @@ export default function TenantsPage() {
     <div className="p-6">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <h1 className="text-2xl font-semibold text-gray-900">Tenants</h1>
-        {isAdmin && (
+        {canCreate && (
           <button
             onClick={() => setShowCreate(true)}
             style={{ padding: "8px 16px", background: "#003DA5", color: "white", border: "none", borderRadius: 6, fontSize: 14, cursor: "pointer", fontWeight: 500 }}
@@ -107,7 +121,7 @@ export default function TenantsPage() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Company</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Unit</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Units</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Plan</th>
                 <th className="text-right px-4 py-3 font-semibold text-gray-600">Coin Balance</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Last Reset</th>
@@ -126,7 +140,19 @@ export default function TenantsPage() {
                       {t.tenant_type === "individual" ? "👤 Individual" : "🏢 Company"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{t.unit_number || "—"}</td>
+                  <td className="px-4 py-3 text-xs">
+                    {t.units && t.units.length > 0 ? (
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                        {t.units.map((u) => (
+                          <span key={u.id} style={{ padding: "1px 6px", borderRadius: 4, background: "#eff6ff", color: "#1e40af", fontWeight: 600, fontSize: 10 }}>
+                            {u.name}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     {t.plan_type ? (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-semibold">

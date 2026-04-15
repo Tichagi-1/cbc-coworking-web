@@ -7,21 +7,26 @@ const TABS = ["General", "Branding", "Operations", "Roles", "Salto", "Users"] as
 type Tab = (typeof TABS)[number];
 
 const PERMISSIONS_LIST = [
+  { key: "view_properties", label: "View properties" },
+  { key: "view_analytics", label: "View analytics" },
+  { key: "view_tenants", label: "View tenants" },
+  { key: "view_floor_map", label: "View floor map" },
+  { key: "view_workspace", label: "View workspace" },
+  { key: "edit_floor_map", label: "Edit floor map" },
   { key: "create_booking", label: "Create bookings" },
   { key: "cancel_booking", label: "Cancel bookings" },
   { key: "create_tenant", label: "Create tenants" },
   { key: "edit_tenant", label: "Edit tenants" },
-  { key: "adjust_coins", label: "Adjust coin balances" },
+  { key: "adjust_coins", label: "Adjust coins" },
   { key: "manage_resources", label: "Manage resources" },
   { key: "manage_plans", label: "Manage plans" },
-  { key: "manage_roles", label: "Manage roles" },
+  { key: "manage_users", label: "Manage users" },
   { key: "manage_settings", label: "Manage settings" },
-  { key: "view_analytics", label: "View analytics" },
-  { key: "view_tenants", label: "View tenants" },
-  { key: "view_workspace", label: "View workspace" },
+  { key: "manage_properties", label: "Manage properties" },
+  { key: "purge_data", label: "Purge data" },
 ];
 
-const ROLES = ["admin", "manager", "receptionist", "tenant"];
+const ROLES = ["admin", "manager", "receptionist", "owner", "tenant"];
 
 const inputStyle: React.CSSProperties = {
   display: "block", width: "100%", marginTop: 4, padding: "8px 10px",

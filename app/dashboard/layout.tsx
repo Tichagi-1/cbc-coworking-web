@@ -5,16 +5,17 @@ import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { PropertyProvider, useProperty } from "@/lib/PropertyContext";
+import { hasPermission } from "@/lib/permissions";
 
 const NAV_ITEMS = [
-  { href: "/dashboard/properties", label: "Properties", icon: "🏢" },
-  { href: "/dashboard/map", label: "Floor Map", icon: "🗺️" },
-  { href: "/dashboard/resources", label: "Resources", icon: "📦" },
-  { href: "/dashboard/plans", label: "Plans", icon: "💰" },
-  { href: "/dashboard/workspace", label: "Workspace", icon: "📅" },
-  { href: "/dashboard/tenants", label: "Tenants", icon: "👥" },
-  { href: "/dashboard/analytics", label: "Analytics", icon: "📊" },
-  { href: "/dashboard/settings", label: "Settings", icon: "⚙️" },
+  { href: "/dashboard/properties", label: "Properties", icon: "🏢", perm: "view_properties" },
+  { href: "/dashboard/map", label: "Floor Map", icon: "🗺️", perm: "view_floor_map" },
+  { href: "/dashboard/resources", label: "Resources", icon: "📦", perm: "manage_resources" },
+  { href: "/dashboard/plans", label: "Plans", icon: "💰", perm: "manage_plans" },
+  { href: "/dashboard/workspace", label: "Workspace", icon: "📅", perm: "view_workspace" },
+  { href: "/dashboard/tenants", label: "Tenants", icon: "👥", perm: "view_tenants" },
+  { href: "/dashboard/analytics", label: "Analytics", icon: "📊", perm: "view_analytics" },
+  { href: "/dashboard/settings", label: "Settings", icon: "⚙️", perm: "manage_settings" },
 ];
 
 function DashboardShell({ children }: { children: ReactNode }) {
@@ -79,7 +80,7 @@ function DashboardShell({ children }: { children: ReactNode }) {
         </div>
 
         <nav style={{ flex: 1, padding: collapsed ? "12px 4px" : "12px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
-          {NAV_ITEMS.map((item) => {
+          {NAV_ITEMS.filter((item) => hasPermission(item.perm)).map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link

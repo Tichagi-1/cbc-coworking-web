@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { api, ROLE_COOKIE } from "@/lib/api";
+import { api } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
 import type { Building, Floor, PropertySummary, FloorSummary, PropertyType, PropertyClass, Resource } from "@/lib/types";
 import type { FacadeZoneData } from "@/components/FacadeCanvas";
-import Cookies from "js-cookie";
 
 const FacadeCanvas = dynamic(() => import("@/components/FacadeCanvas"), {
   ssr: false,
@@ -61,7 +61,7 @@ export default function PropertyDetailPage() {
   const params = useParams();
   const router = useRouter();
   const propertyId = Number(params.id);
-  const role = Cookies.get(ROLE_COOKIE) || "";
+  const canManage = hasPermission("manage_properties");
 
   const [summary, setSummary] = useState<PropertySummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -208,15 +208,15 @@ export default function PropertyDetailPage() {
       <div style={{ display: "flex", gap: 24, marginBottom: 24, background: "white", borderRadius: 12, padding: 20, border: "1px solid #e5e7eb" }}>
         {/* Photo */}
         <div
-          style={{ width: 200, height: 150, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg, #0A1730, #1F69FF)", position: "relative", cursor: role === "admin" ? "pointer" : "default" }}
-          onClick={() => role === "admin" && photoInputRef.current?.click()}
+          style={{ width: 200, height: 150, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg, #0A1730, #1F69FF)", position: "relative", cursor: canManage ? "pointer" : "default" }}
+          onClick={() => canManage && photoInputRef.current?.click()}
         >
           {photoSrc ? (
             <img src={photoSrc} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           ) : (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: 48, opacity: 0.3 }}>🏢</div>
           )}
-          {role === "admin" && (
+          {canManage && (
             <div style={{
               position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
               background: uploadingPhoto ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0)",
@@ -256,7 +256,7 @@ export default function PropertyDetailPage() {
           )}
           {p.description && <div style={{ fontSize: 13, color: "#6b7280", marginTop: 6 }}>{p.description}</div>}
 
-          {role === "admin" && (
+          {canManage && (
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button
                 onClick={() => setShowEdit(true)}
@@ -279,7 +279,7 @@ export default function PropertyDetailPage() {
       <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", padding: 20, marginBottom: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: "#0A1730", margin: 0 }}>Facade Map</h2>
-          {role === "admin" && facadeImageUrl && (
+          {canManage && facadeImageUrl && (
             <div style={{ display: "flex", gap: 8 }}>
               {facadeMode === "view" ? (
                 <button
@@ -319,7 +319,7 @@ export default function PropertyDetailPage() {
               onZoneClick={(zone) => router.push(`/dashboard/map?floor=${zone.floor_id}`)}
               onZonesChange={(zones) => setFacadeEditZones(zones)}
             />
-            {role === "admin" && (
+            {canManage && (
               <div style={{ marginTop: 8 }}>
                 <button
                   onClick={() => facadeInputRef.current?.click()}
@@ -334,19 +334,19 @@ export default function PropertyDetailPage() {
           </>
         ) : (
           <div
-            onClick={() => role === "admin" && facadeInputRef.current?.click()}
+            onClick={() => canManage && facadeInputRef.current?.click()}
             style={{
               border: "2px dashed #d1d5db",
               borderRadius: 8,
               padding: 40,
               textAlign: "center",
-              cursor: role === "admin" ? "pointer" : "default",
+              cursor: canManage ? "pointer" : "default",
               color: "#9ca3af",
             }}
           >
             <div style={{ fontSize: 32, marginBottom: 8 }}>🏢</div>
             <div style={{ fontSize: 14 }}>
-              {role === "admin" ? "Upload a facade photo to enable zone mapping" : "No facade photo uploaded"}
+              {canManage ? "Upload a facade photo to enable zone mapping" : "No facade photo uploaded"}
             </div>
             {uploadingFacade && <div style={{ fontSize: 13, marginTop: 8, color: "#1F69FF" }}>Uploading...</div>}
             <input ref={facadeInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFacadeUpload} />

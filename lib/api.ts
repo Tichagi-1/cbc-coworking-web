@@ -7,6 +7,7 @@ export const TOKEN_COOKIE = "cbc_token";
 export const ROLE_COOKIE = "cbc_role";
 export const NAME_COOKIE = "cbc_name";
 export const PROPERTY_COOKIE = "cbc_property";
+export const PERMS_COOKIE = "cbc_permissions";
 
 export const api = axios.create({
   baseURL: API_URL,

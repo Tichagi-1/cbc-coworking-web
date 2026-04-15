@@ -3,7 +3,7 @@
 import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
-import { api, TOKEN_COOKIE, ROLE_COOKIE, NAME_COOKIE } from "@/lib/api";
+import { api, TOKEN_COOKIE, ROLE_COOKIE, NAME_COOKIE, PERMS_COOKIE } from "@/lib/api";
 import type { AuthResponse } from "@/lib/types";
 
 export default function LoginPage() {
@@ -40,8 +40,14 @@ export default function LoginPage() {
       Cookies.set(TOKEN_COOKIE, res.data.access_token, { expires: 7, sameSite: "lax" });
       Cookies.set(ROLE_COOKIE, res.data.role, { expires: 7, sameSite: "lax" });
       Cookies.set(NAME_COOKIE, res.data.name, { expires: 7, sameSite: "lax" });
+      Cookies.set(PERMS_COOKIE, JSON.stringify(res.data.permissions || []), { expires: 7, sameSite: "lax" });
 
-      router.push("/dashboard");
+      const role = res.data.role;
+      if (role === "tenant") {
+        router.push("/dashboard/workspace");
+      } else {
+        router.push("/dashboard/properties");
+      }
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
