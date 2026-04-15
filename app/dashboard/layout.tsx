@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { PropertyProvider, useProperty } from "@/lib/PropertyContext";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission, getPermissions, getRole } from "@/lib/permissions";
 
 const NAV_ITEMS = [
   { href: "/dashboard/properties", label: "Properties", icon: "🏢", perm: "view_properties" },
@@ -24,6 +24,7 @@ function DashboardShell({ children }: { children: ReactNode }) {
   const [logoUrl, setLogoUrl] = useState("");
   const [companyName, setCompanyName] = useState("CBC");
   const { propertyId, propertyName, properties, setPropertyId } = useProperty();
+  const [navItems, setNavItems] = useState(NAV_ITEMS); // show all initially, filter after mount
 
   useEffect(() => {
     setCollapsed(localStorage.getItem("sidebar_collapsed") === "true");
@@ -31,6 +32,25 @@ function DashboardShell({ children }: { children: ReactNode }) {
       if (r.data.logo_url) setLogoUrl(r.data.logo_url);
       if (r.data.company_name) setCompanyName(r.data.company_name);
     }).catch(() => {});
+
+    // Load permissions: try cookie first, fallback to API
+    const perms = getPermissions();
+    const role = getRole();
+
+    if (perms.length > 0 || role === "admin") {
+      setNavItems(NAV_ITEMS.filter((item) => hasPermission(item.perm)));
+    } else if (role) {
+      // Cookie missing permissions (old login session) — fetch from API
+      api.get<string[]>("/permissions/me").then((r) => {
+        import("js-cookie").then((Cookies) => {
+          Cookies.default.set("cbc_permissions", JSON.stringify(r.data), { expires: 7, sameSite: "lax" });
+        });
+        setNavItems(NAV_ITEMS.filter((item) => r.data.includes(item.perm)));
+      }).catch(() => {
+        // API failed — show all items as fallback
+        setNavItems(NAV_ITEMS);
+      });
+    }
   }, []);
 
   const toggleSidebar = () => {
@@ -80,7 +100,7 @@ function DashboardShell({ children }: { children: ReactNode }) {
         </div>
 
         <nav style={{ flex: 1, padding: collapsed ? "12px 4px" : "12px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
-          {NAV_ITEMS.filter((item) => hasPermission(item.perm)).map((item) => {
+          {navItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
