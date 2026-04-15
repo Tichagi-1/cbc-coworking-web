@@ -4,8 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { PropertyProvider, useProperty } from "@/lib/PropertyContext";
 
 const NAV_ITEMS = [
+  { href: "/dashboard/properties", label: "Properties", icon: "🏢" },
   { href: "/dashboard/map", label: "Floor Map", icon: "🗺️" },
   { href: "/dashboard/resources", label: "Resources", icon: "📦" },
   { href: "/dashboard/plans", label: "Plans", icon: "💰" },
@@ -15,11 +17,12 @@ const NAV_ITEMS = [
   { href: "/dashboard/settings", label: "Settings", icon: "⚙️" },
 ];
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+function DashboardShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [logoUrl, setLogoUrl] = useState("");
   const [companyName, setCompanyName] = useState("CBC");
+  const { propertyId, propertyName, properties, setPropertyId } = useProperty();
 
   useEffect(() => {
     setCollapsed(localStorage.getItem("sidebar_collapsed") === "true");
@@ -151,9 +154,34 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             flexShrink: 0,
           }}
         >
-          <div>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>Building</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>Modera Coworking</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 500 }}>Property</div>
+              {properties.length > 1 ? (
+                <select
+                  value={propertyId}
+                  onChange={(e) => setPropertyId(Number(e.target.value))}
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: "#111827",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 6,
+                    padding: "2px 8px",
+                    background: "white",
+                    cursor: "pointer",
+                  }}
+                >
+                  {properties.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>
+                  {propertyName || "Loading..."}
+                </div>
+              )}
+            </div>
           </div>
           <div style={{ fontSize: 13, color: "#6b7280" }}>CBC Coworking OS</div>
         </header>
@@ -162,5 +190,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <main style={{ flex: 1, overflow: "auto" }}>{children}</main>
       </div>
     </div>
+  );
+}
+
+export default function DashboardLayout({ children }: { children: ReactNode }) {
+  return (
+    <PropertyProvider>
+      <DashboardShell>{children}</DashboardShell>
+    </PropertyProvider>
   );
 }

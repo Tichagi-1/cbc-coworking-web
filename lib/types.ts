@@ -18,6 +18,9 @@ export type ResourceType =
 
 export type RatePeriod = "month" | "day" | "biweekly" | "hour";
 
+export type PropertyType = "office" | "retail" | "warehouse" | "industrial" | "mixed_use" | "residential";
+export type PropertyClass = "A+" | "A" | "B+" | "B" | "C";
+
 export interface Building {
   id: number;
   name: string;
@@ -25,6 +28,52 @@ export interface Building {
   building_class: string;
   total_area: number;
   leasable_area: number;
+
+  property_type?: PropertyType | null;
+  property_class?: PropertyClass | null;
+  city?: string | null;
+  gba_m2?: number | null;
+  gla_m2?: number | null;
+  rentable_area_m2?: number | null;
+  floors_count?: number | null;
+  year_built?: number | null;
+  parking_spaces?: number | null;
+  owner_name?: string | null;
+  management_start_date?: string | null;
+  description?: string | null;
+  photo_url?: string | null;
+  is_active?: boolean;
+  created_at?: string | null;
+}
+
+export interface FloorSummary {
+  id: number;
+  name: string | null;
+  number: number;
+  vacancy_metric: string;
+  total_area_m2: number | null;
+  total_seats: number | null;
+  total_resources: number;
+  occupied_resources: number;
+  vacant_resources: number;
+  vacancy_rate: number;
+}
+
+export interface PropertyTotals {
+  total_floors: number;
+  total_resources: number;
+  occupied_resources: number;
+  vacant_resources: number;
+  gla_m2: number | null;
+  occupied_m2: number;
+  vacancy_rate_m2: number;
+  total_tenants: number;
+}
+
+export interface PropertySummary {
+  property: Building;
+  floors: FloorSummary[];
+  totals: PropertyTotals;
 }
 
 export interface Floor {

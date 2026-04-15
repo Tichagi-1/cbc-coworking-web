@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Cookies from "js-cookie";
 
 import { api, ROLE_COOKIE } from "@/lib/api";
+import { useProperty } from "@/lib/PropertyContext";
 import EditResourceModal from "@/components/EditResourceModal";
 import type {
   Floor,
@@ -14,8 +15,6 @@ import type {
   UnitStatus,
   UserRole,
 } from "@/lib/types";
-
-const BUILDING_ID = 1;
 
 const TYPE_TABS: { id: "all" | ResourceType; label: string }[] = [
   { id: "all", label: "All" },
@@ -73,6 +72,7 @@ function formatUzs(value: number): string {
 }
 
 export default function ResourcesPage() {
+  const { propertyId: BUILDING_ID } = useProperty();
   const [role, setRole] = useState<UserRole | undefined>(undefined);
   useEffect(() => {
     setRole(Cookies.get(ROLE_COOKIE) as UserRole | undefined);
@@ -112,7 +112,8 @@ export default function ResourcesPage() {
       .get<Plan[]>(`/plans?building_id=${BUILDING_ID}`)
       .then((res) => setPlans(res.data))
       .catch(() => undefined);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [BUILDING_ID]);
 
   const filtered = useMemo(() => {
     let list = activeTab === "all" ? resources : resources.filter((r) => r.resource_type === activeTab);
@@ -459,6 +460,7 @@ function AddResourceModal({
   onClose: () => void;
   onCreated: () => Promise<void>;
 }) {
+  const { propertyId: BUILDING_ID } = useProperty();
   const [name, setName] = useState("");
   const [type, setType] = useState<ResourceType>("office");
   const [floorId, setFloorId] = useState<number | null>(floors[0]?.id ?? null);

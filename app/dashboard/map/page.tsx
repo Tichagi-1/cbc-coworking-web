@@ -13,6 +13,7 @@ import dayjs from "dayjs";
 import Cookies from "js-cookie";
 
 import { api, buildAssetUrl, ROLE_COOKIE } from "@/lib/api";
+import { useProperty } from "@/lib/PropertyContext";
 import type {
   Building,
   Floor,
@@ -36,9 +37,8 @@ const FloorCanvas = dynamic(() => import("@/components/FloorCanvas"), {
 
 type Mode = "view" | "edit" | "history";
 
-const BUILDING_ID = 1;
-
 export default function MapPage() {
+  const { propertyId: BUILDING_ID } = useProperty();
   const [role, setRole] = useState<UserRole | undefined>(undefined);
   useEffect(() => {
     setRole(Cookies.get(ROLE_COOKIE) as UserRole | undefined);
@@ -135,13 +135,13 @@ export default function MapPage() {
         setError((e as Error)?.message || "Failed to load floors");
       }
     },
-    [floorId]
+    [floorId, BUILDING_ID]
   );
 
   useEffect(() => {
     loadFloors();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [BUILDING_ID]);
 
   // ── Floor data: zones (live) or snapshot (history) ─────────────────────
   const loadFloorData = useCallback(

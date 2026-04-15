@@ -2,29 +2,30 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useProperty } from "@/lib/PropertyContext";
 import type { BillingMode, Plan } from "@/lib/types";
-
-const BUILDING_ID = 1;
 
 function formatUzs(value: number): string {
   return value.toLocaleString() + " сум";
 }
 
-const EMPTY_PLAN: Omit<Plan, "id" | "created_at"> = {
-  building_id: BUILDING_ID,
-  name: "",
-  billing_mode: "per_unit",
-  base_rate_uzs: 0,
-  coin_pct: 5,
-  coin_reset_day: 1,
-  meeting_discount_pct: 10,
-  meeting_discount_on: false,
-  event_discount_pct: 0,
-  event_discount_on: false,
-  is_active: true,
-};
-
 export default function PlansPage() {
+  const { propertyId: BUILDING_ID } = useProperty();
+
+  const EMPTY_PLAN: Omit<Plan, "id" | "created_at"> = {
+    building_id: BUILDING_ID,
+    name: "",
+    billing_mode: "per_unit",
+    base_rate_uzs: 0,
+    coin_pct: 5,
+    coin_reset_day: 1,
+    meeting_discount_pct: 10,
+    meeting_discount_on: false,
+    event_discount_pct: 0,
+    event_discount_on: false,
+    is_active: true,
+  };
+
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isNew, setIsNew] = useState(false);
@@ -56,7 +57,8 @@ export default function PlansPage() {
 
   useEffect(() => {
     loadPlans();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [BUILDING_ID]);
 
   function populateForm(p: Omit<Plan, "id" | "created_at">) {
     setName(p.name);
