@@ -72,6 +72,8 @@ export default function PropertiesPage() {
   const [form, setForm] = useState<CreateForm>({ ...EMPTY_FORM });
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Building | null>(null);
+  const [deletingId, setDeletingId] = useState(false);
   const role = Cookies.get(ROLE_COOKIE) || "";
 
   useEffect(() => {
@@ -112,6 +114,17 @@ export default function PropertiesPage() {
     } finally {
       setCreating(false);
     }
+  }
+
+  async function handleDeleteProperty() {
+    if (!deleteTarget) return;
+    setDeletingId(true);
+    try {
+      await api.delete(`/properties/${deleteTarget.id}`);
+      setProperties((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch { /* ignore */ }
+    setDeletingId(false);
   }
 
   const inputStyle: React.CSSProperties = {
@@ -162,9 +175,15 @@ export default function PropertiesPage() {
           No properties found. Create your first property to get started.
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340, 1fr))", gap: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 20 }}>
           {properties.map((p) => (
-            <PropertyCard key={p.id} property={p} onClick={() => router.push(`/dashboard/properties/${p.id}`)} />
+            <PropertyCard
+              key={p.id}
+              property={p}
+              isAdmin={role === "admin"}
+              onClick={() => router.push(`/dashboard/properties/${p.id}`)}
+              onDelete={() => setDeleteTarget(p)}
+            />
           ))}
         </div>
       )}
@@ -310,11 +329,41 @@ export default function PropertiesPage() {
           </div>
         </div>
       )}
+
+      {/* Delete confirmation */}
+      {deleteTarget && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setDeleteTarget(null); }}
+        >
+          <div style={{ background: "white", borderRadius: 12, padding: 24, maxWidth: 400, width: "100%" }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1730", marginBottom: 8 }}>Delete property?</h3>
+            <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 20 }}>
+              <strong>{deleteTarget.name}</strong> will be deactivated. All data will be preserved.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                style={{ padding: "8px 18px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", fontSize: 14, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteProperty}
+                disabled={deletingId}
+                style={{ padding: "8px 18px", background: deletingId ? "#fca5a5" : "#dc2626", color: "white", border: "none", borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: deletingId ? "default" : "pointer" }}
+              >
+                {deletingId ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function PropertyCard({ property: p, onClick }: { property: Building; onClick: () => void }) {
+function PropertyCard({ property: p, isAdmin, onClick, onDelete }: { property: Building; isAdmin: boolean; onClick: () => void; onDelete: () => void }) {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
   const photoSrc = p.photo_url
     ? p.photo_url.startsWith("http") ? p.photo_url : `${apiUrl}${p.photo_url}`
@@ -391,22 +440,40 @@ function PropertyCard({ property: p, onClick }: { property: Building; onClick: (
           )}
         </div>
 
-        <button
-          style={{
-            marginTop: 12,
-            width: "100%",
-            padding: "8px 0",
-            background: "#1F69FF",
-            color: "white",
-            border: "none",
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Open
-        </button>
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <button
+            style={{
+              flex: 1,
+              padding: "8px 0",
+              background: "#1F69FF",
+              color: "white",
+              border: "none",
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Open
+          </button>
+          {isAdmin && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              title="Delete property"
+              style={{
+                padding: "8px 12px",
+                background: "white",
+                color: "#dc2626",
+                border: "1px solid #fecaca",
+                borderRadius: 6,
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              🗑
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

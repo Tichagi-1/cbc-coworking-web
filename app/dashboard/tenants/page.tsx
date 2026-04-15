@@ -36,6 +36,8 @@ export default function TenantsPage() {
   const [coinModalTenant, setCoinModalTenant] = useState<Tenant | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editTenant, setEditTenant] = useState<Tenant | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Tenant | null>(null);
+  const [deletingTenant, setDeletingTenant] = useState(false);
   const [role, setRole] = useState("");
 
   useEffect(() => {
@@ -52,6 +54,21 @@ export default function TenantsPage() {
     } catch (e) {
       setError((e as Error)?.message || "Failed to load tenants");
     }
+  }
+
+  async function handleDeleteTenant() {
+    if (!deleteTarget) return;
+    setDeletingTenant(true);
+    try {
+      await api.delete(`/tenants/${deleteTarget.id}`);
+      setTenants((prev) => prev.filter((t) => t.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      setToast("Tenant deleted");
+      setTimeout(() => setToast(null), 3000);
+    } catch (e) {
+      setError((e as Error)?.message || "Failed to delete tenant");
+    }
+    setDeletingTenant(false);
   }
 
   return (
@@ -153,6 +170,13 @@ export default function TenantsPage() {
                         >
                           Members
                         </a>
+                        <button
+                          onClick={() => setDeleteTarget(t)}
+                          title="Delete tenant"
+                          style={{padding:'4px 10px', border:'1px solid #fecaca', borderRadius:6, background:'white', cursor:'pointer', fontSize:12, fontWeight:500, color:'#dc2626'}}
+                        >
+                          🗑
+                        </button>
                       </div>
                     </td>
                   )}
@@ -204,6 +228,39 @@ export default function TenantsPage() {
             setTimeout(() => setToast(null), 3000);
           }}
         />
+      )}
+
+      {/* Delete tenant confirmation */}
+      {deleteTarget && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setDeleteTarget(null); }}
+        >
+          <div style={{ background: "white", borderRadius: 12, padding: 24, maxWidth: 420, width: "100%" }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 8 }}>Delete tenant?</h3>
+            <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 6 }}>
+              <strong>{deleteTarget.company_name}</strong>
+            </p>
+            <p style={{ fontSize: 13, color: "#9ca3af", marginBottom: 20 }}>
+              All linked resources will be unassigned. Booking history will be preserved.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                style={{ padding: "8px 18px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", fontSize: 14, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteTenant}
+                disabled={deletingTenant}
+                style={{ padding: "8px 18px", background: deletingTenant ? "#fca5a5" : "#dc2626", color: "white", border: "none", borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: deletingTenant ? "default" : "pointer" }}
+              >
+                {deletingTenant ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -103,15 +103,20 @@ export default function ZonePanel({
     if (!open) setEditing(false);
   }, [open]);
 
+  // Office requires tenant when occupied or reserved
+  const isOfficeType = resource?.resource_type === "office" || resource?.resource_type === "open_space" || resource?.resource_type === "hot_desk";
+  const tenantRequired = isOfficeType && (status === "occupied" || status === "reserved") && !tenantId;
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!resource || !onSave) return;
+    if (tenantRequired) return;
 
     const patch: ResourcePatchPayload = {
       name: name.trim(),
       status,
-      tenant_id: tenantId,
-      tenant_name: tenantName.trim() || null,
+      tenant_id: status === "vacant" ? null : tenantId,
+      tenant_name: status === "vacant" ? null : (tenantName.trim() || null),
     };
 
     if (
@@ -306,7 +311,7 @@ export default function ZonePanel({
 
               <div>
                 <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
-                  Tenant
+                  Tenant {tenantRequired && <span className="text-red-500">*</span>}
                 </label>
                 <select
                   value={tenantId ?? ""}
@@ -322,13 +327,16 @@ export default function ZonePanel({
                       setStatus("vacant");
                     }
                   }}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
+                  className={`w-full rounded-md border px-3 py-2 text-sm bg-white ${tenantRequired ? "border-red-400" : "border-gray-300"}`}
                 >
                   <option value="">— Vacant (no tenant) —</option>
                   {tenants.map((t) => (
                     <option key={t.id} value={t.id}>{t.company_name}</option>
                   ))}
                 </select>
+                {tenantRequired && (
+                  <p className="text-xs text-red-500 mt-1">Required for occupied/reserved office</p>
+                )}
               </div>
 
               {(resource.resource_type === "office" ||
@@ -442,7 +450,7 @@ export default function ZonePanel({
                 <button
                   type="submit"
                   form="zone-edit-form"
-                  disabled={saving}
+                  disabled={saving || tenantRequired}
                   className="flex-1 rounded-md bg-cbc-blue hover:bg-cbc-bright-blue text-white font-medium py-2 transition disabled:opacity-50"
                 >
                   {saving ? "Saving…" : "Save"}

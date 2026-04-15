@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api, ROLE_COOKIE } from "@/lib/api";
 import type { Building, PropertySummary, FloorSummary, PropertyType, PropertyClass, Resource } from "@/lib/types";
@@ -62,6 +62,10 @@ export default function PropertyDetailPage() {
   const [expandedFloor, setExpandedFloor] = useState<number | null>(null);
   const [floorResources, setFloorResources] = useState<Record<number, Resource[]>>({});
   const [loadingFloorRes, setLoadingFloorRes] = useState<number | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   function reload() {
     setLoading(true);
@@ -92,6 +96,29 @@ export default function PropertyDetailPage() {
     }
   }
 
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      await api.post(`/properties/${propertyId}/photo`, fd);
+      reload();
+    } catch { /* ignore */ }
+    setUploadingPhoto(false);
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await api.delete(`/properties/${propertyId}`);
+      router.push("/dashboard/properties");
+    } catch { /* ignore */ }
+    setDeleting(false);
+  }
+
   if (loading || !summary) {
     return <div style={{ padding: 60, textAlign: "center", color: "#9ca3af" }}>Loading...</div>;
   }
@@ -118,12 +145,28 @@ export default function PropertyDetailPage() {
       {/* A) Property Header */}
       <div style={{ display: "flex", gap: 24, marginBottom: 24, background: "white", borderRadius: 12, padding: 20, border: "1px solid #e5e7eb" }}>
         {/* Photo */}
-        <div style={{ width: 200, height: 150, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg, #0A1730, #1F69FF)" }}>
+        <div
+          style={{ width: 200, height: 150, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg, #0A1730, #1F69FF)", position: "relative", cursor: role === "admin" ? "pointer" : "default" }}
+          onClick={() => role === "admin" && photoInputRef.current?.click()}
+        >
           {photoSrc ? (
             <img src={photoSrc} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           ) : (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: 48, opacity: 0.3 }}>🏢</div>
           )}
+          {role === "admin" && (
+            <div style={{
+              position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+              background: uploadingPhoto ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0)",
+              transition: "background 0.2s", fontSize: 14, color: "white", fontWeight: 500,
+            }}
+              onMouseEnter={(e) => { if (!uploadingPhoto) (e.currentTarget as HTMLElement).style.background = "rgba(0,0,0,0.4)"; }}
+              onMouseLeave={(e) => { if (!uploadingPhoto) (e.currentTarget as HTMLElement).style.background = "rgba(0,0,0,0)"; }}
+            >
+              {uploadingPhoto ? "Uploading..." : "Upload Photo"}
+            </div>
+          )}
+          <input ref={photoInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhotoUpload} />
         </div>
 
         {/* Info */}
@@ -152,12 +195,20 @@ export default function PropertyDetailPage() {
           {p.description && <div style={{ fontSize: 13, color: "#6b7280", marginTop: 6 }}>{p.description}</div>}
 
           {role === "admin" && (
-            <button
-              onClick={() => setShowEdit(true)}
-              style={{ marginTop: 10, padding: "6px 14px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", fontSize: 13, cursor: "pointer" }}
-            >
-              Edit
-            </button>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button
+                onClick={() => setShowEdit(true)}
+                style={{ padding: "6px 14px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", fontSize: 13, cursor: "pointer" }}
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                style={{ padding: "6px 14px", border: "1px solid #fecaca", borderRadius: 6, background: "white", fontSize: 13, cursor: "pointer", color: "#dc2626" }}
+              >
+                Delete
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -205,6 +256,36 @@ export default function PropertyDetailPage() {
           onClose={() => setShowEdit(false)}
           onSaved={() => { setShowEdit(false); reload(); }}
         />
+      )}
+
+      {/* Delete Confirmation */}
+      {showDeleteConfirm && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteConfirm(false); }}
+        >
+          <div style={{ background: "white", borderRadius: 12, padding: 24, maxWidth: 400, width: "100%" }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1730", marginBottom: 8 }}>Delete property?</h3>
+            <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 20 }}>
+              <strong>{p.name}</strong> will be deactivated. All data will be preserved.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                style={{ padding: "8px 18px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", fontSize: 14, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                style={{ padding: "8px 18px", background: deleting ? "#fca5a5" : "#dc2626", color: "white", border: "none", borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: deleting ? "default" : "pointer" }}
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
