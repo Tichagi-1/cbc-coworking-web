@@ -60,16 +60,28 @@ export default function FacadeCanvas({
   const zonesRef = useRef<FacadeZoneData[]>(zones);
   zonesRef.current = zones;
 
+  // Keep stable refs for callbacks so handlers never go stale
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const onZoneClickRef = useRef(onZoneClick);
+  onZoneClickRef.current = onZoneClick;
+  const onZonesChangeRef = useRef(onZonesChange);
+  onZonesChangeRef.current = onZonesChange;
+  const floorsRef = useRef(floors);
+  floorsRef.current = floors;
+
   // Tooltip state
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
 
-  // Edit mode state
-  const [drawing, setDrawing] = useState(false);
+  // Edit mode state — use REFS for drawing flag (avoids stale closures)
+  const drawingModeRef = useRef(false);
+  const [drawingUI, setDrawingUI] = useState(false); // only for button styling
   const [editingZoneIdx, setEditingZoneIdx] = useState<number | null>(null);
   const [assignModal, setAssignModal] = useState<{ points: { x: number; y: number }[] } | null>(null);
   const [assignFloorId, setAssignFloorId] = useState<number | null>(null);
   const [assignLabel, setAssignLabel] = useState("");
 
+  const isDrawingRef = useRef(false);
   const drawStartRef = useRef<{ x: number; y: number } | null>(null);
   const drawRectRef = useRef<any>(null);
 
@@ -87,51 +99,6 @@ export default function FacadeCanvas({
     canvas.requestRenderAll();
   }, []);
 
-  // ── Initialize canvas ──────────────────────────────────────────────
-  useEffect(() => {
-    let disposed = false;
-
-    (async () => {
-      const fabric = await import("fabric").then((m) => m.fabric);
-      if (disposed) return;
-      fabricLibRef.current = fabric;
-
-      const el = canvasElRef.current!;
-      const canvas = new fabric.Canvas(el, {
-        selection: mode === "edit",
-        preserveObjectStacking: true,
-      });
-      fabricCanvasRef.current = canvas;
-
-      // Load facade image
-      if (facadeImageUrl) {
-        const url = facadeImageUrl.startsWith("http")
-          ? facadeImageUrl
-          : `${process.env.NEXT_PUBLIC_API_URL || ""}${facadeImageUrl}`;
-
-        fabric.Image.fromURL(url, (img: any) => {
-          if (disposed || !img) return;
-          const w = img.width || 800;
-          const h = img.height || 600;
-          baseSizeRef.current = { width: w, height: h };
-          canvas.setBackgroundImage(img, () => {
-            applyResponsiveScale();
-            renderZones();
-          }, { scaleX: 1, scaleY: 1 });
-        }, { crossOrigin: "anonymous" });
-      } else {
-        applyResponsiveScale();
-      }
-    })();
-
-    return () => {
-      disposed = true;
-      fabricCanvasRef.current?.dispose();
-      fabricCanvasRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [facadeImageUrl]);
-
   // ── Render zones ───────────────────────────────────────────────────
   const renderZones = useCallback(() => {
     const canvas = fabricCanvasRef.current;
@@ -141,6 +108,9 @@ export default function FacadeCanvas({
     // Remove old zone objects
     const objs = canvas.getObjects().filter((o: any) => o._isFacadeZone || o._isFacadeLabel);
     objs.forEach((o: any) => canvas.remove(o));
+
+    const curMode = modeRef.current;
+    const isDrawing = drawingModeRef.current;
 
     zonesRef.current.forEach((zone, idx) => {
       if (!zone.points || zone.points.length < 3) return;
@@ -156,10 +126,10 @@ export default function FacadeCanvas({
           opacity: fillOpacity,
           stroke: "white",
           strokeWidth: 2,
-          selectable: mode === "edit",
-          evented: true,
-          hasControls: mode === "edit",
-          hasBorders: mode === "edit",
+          selectable: curMode === "edit" && !isDrawing,
+          evented: !isDrawing,
+          hasControls: curMode === "edit" && !isDrawing,
+          hasBorders: curMode === "edit" && !isDrawing,
           lockRotation: true,
           _isFacadeZone: true,
           _zoneIdx: idx,
@@ -192,188 +162,199 @@ export default function FacadeCanvas({
     });
 
     canvas.requestRenderAll();
-  }, [mode]);
+  }, []);
 
-  // Re-render zones when data changes
+  // Re-render zones when data or mode changes
   useEffect(() => {
     renderZones();
-  }, [zones, renderZones]);
+  }, [zones, mode, renderZones]);
 
-  // ── View mode: hover tooltip + click ───────────────────────────────
+  // ── Initialize canvas + attach ALL mouse handlers ONCE ─────────────
   useEffect(() => {
-    const canvas = fabricCanvasRef.current;
-    if (!canvas) return;
+    let disposed = false;
 
-    function handleMouseOver(e: any) {
-      if (mode !== "view" || !e.target?._isFacadeZone) return;
-      const zone = zonesRef.current[e.target._zoneIdx];
-      if (!zone) return;
-      e.target.set("opacity", 0.6);
-      canvas.requestRenderAll();
-    }
+    (async () => {
+      const fabric = await import("fabric").then((m) => m.fabric);
+      if (disposed) return;
+      fabricLibRef.current = fabric;
 
-    function handleMouseOut(e: any) {
-      if (mode !== "view" || !e.target?._isFacadeZone) return;
-      const zone = zonesRef.current[e.target._zoneIdx];
-      if (!zone) return;
-      e.target.set("opacity", getOccOpacity(zone.vacancy?.occupancy_rate));
-      canvas.requestRenderAll();
-      setTooltip(null);
-    }
+      const el = canvasElRef.current!;
+      const canvas = new fabric.Canvas(el, {
+        selection: false,
+        preserveObjectStacking: true,
+      });
+      fabricCanvasRef.current = canvas;
 
-    function handleMouseMove(e: any) {
-      if (mode !== "view" || !e.target?._isFacadeZone) {
+      // ── All mouse handlers (attached once, use refs for state) ──
+
+      canvas.on("mouse:over", (e: any) => {
+        if (modeRef.current !== "view" || !e.target?._isFacadeZone) return;
+        const zone = zonesRef.current[e.target._zoneIdx];
+        if (!zone) return;
+        e.target.set("opacity", 0.6);
+        canvas.requestRenderAll();
+      });
+
+      canvas.on("mouse:out", (e: any) => {
+        if (modeRef.current !== "view" || !e.target?._isFacadeZone) return;
+        const zone = zonesRef.current[e.target._zoneIdx];
+        if (!zone) return;
+        e.target.set("opacity", getOccOpacity(zone.vacancy?.occupancy_rate));
+        canvas.requestRenderAll();
         setTooltip(null);
-        return;
-      }
-      const zone = zonesRef.current[e.target._zoneIdx];
-      if (!zone) return;
-      const wrapper = wrapperRef.current;
-      if (!wrapper) return;
-      const rect = wrapper.getBoundingClientRect();
-      const ptr = canvas.getPointer(e.e, true);
-      const v = zone.vacancy;
-      const lines = [
-        zone.floor_name || zone.label || `Floor ${zone.floor_number}`,
-        v ? `${Math.round(v.occupancy_rate)}% occupied` : "No data",
-        v ? `${v.occupied}/${v.total} ${v.unit_label}` : "",
-      ].filter(Boolean).join("\n");
-      setTooltip({ x: ptr.x + 12, y: ptr.y - 10, text: lines });
-    }
-
-    function handleClick(e: any) {
-      if (!e.target?._isFacadeZone) return;
-      const zone = zonesRef.current[e.target._zoneIdx];
-      if (!zone) return;
-
-      if (mode === "view") {
-        onZoneClick?.(zone);
-      } else if (mode === "edit") {
-        setEditingZoneIdx(e.target._zoneIdx);
-      }
-    }
-
-    canvas.on("mouse:over", handleMouseOver);
-    canvas.on("mouse:out", handleMouseOut);
-    canvas.on("mouse:move", handleMouseMove);
-    canvas.on("mouse:up", handleClick);
-
-    return () => {
-      canvas.off("mouse:over", handleMouseOver);
-      canvas.off("mouse:out", handleMouseOut);
-      canvas.off("mouse:move", handleMouseMove);
-      canvas.off("mouse:up", handleClick);
-    };
-  }, [mode, onZoneClick]);
-
-  // ── Edit mode: rectangle drawing ──────────────────────────────────
-  useEffect(() => {
-    const canvas = fabricCanvasRef.current;
-    const fabric = fabricLibRef.current;
-    if (!canvas || !fabric || mode !== "edit") return;
-
-    function handleMouseDown(e: any) {
-      if (!drawing) return;
-      const ptr = canvas.getPointer(e.e);
-      drawStartRef.current = { x: ptr.x, y: ptr.y };
-      const rect = new fabric.Rect({
-        left: ptr.x,
-        top: ptr.y,
-        width: 0,
-        height: 0,
-        fill: "rgba(31,105,255,0.3)",
-        stroke: "#1F69FF",
-        strokeWidth: 2,
-        selectable: false,
-        evented: false,
-      });
-      drawRectRef.current = rect;
-      canvas.add(rect);
-    }
-
-    function handleMouseMoveEdit(e: any) {
-      if (!drawing || !drawStartRef.current || !drawRectRef.current) return;
-      const ptr = canvas.getPointer(e.e);
-      const start = drawStartRef.current;
-      const left = Math.min(start.x, ptr.x);
-      const top = Math.min(start.y, ptr.y);
-      const width = Math.abs(ptr.x - start.x);
-      const height = Math.abs(ptr.y - start.y);
-      drawRectRef.current.set({ left, top, width, height });
-      canvas.requestRenderAll();
-    }
-
-    function handleMouseUpEdit(e: any) {
-      if (!drawing || !drawStartRef.current || !drawRectRef.current) return;
-      const rect = drawRectRef.current;
-      const w = rect.width;
-      const h = rect.height;
-      canvas.remove(rect);
-      drawRectRef.current = null;
-
-      if (w < 20 || h < 20) {
-        drawStartRef.current = null;
-        return;
-      }
-
-      const left = rect.left;
-      const top = rect.top;
-      const points = [
-        { x: left, y: top },
-        { x: left + w, y: top },
-        { x: left + w, y: top + h },
-        { x: left, y: top + h },
-      ];
-
-      drawStartRef.current = null;
-      setDrawing(false);
-      setAssignModal({ points });
-      setAssignFloorId(floors[0]?.id ?? null);
-      setAssignLabel(floors[0] ? `${floors[0].number}F` : "");
-    }
-
-    canvas.on("mouse:down", handleMouseDown);
-    canvas.on("mouse:move", handleMouseMoveEdit);
-    canvas.on("mouse:up", handleMouseUpEdit);
-
-    return () => {
-      canvas.off("mouse:down", handleMouseDown);
-      canvas.off("mouse:move", handleMouseMoveEdit);
-      canvas.off("mouse:up", handleMouseUpEdit);
-    };
-  }, [mode, drawing, floors]);
-
-  // ── Edit mode: update zone positions after drag ────────────────────
-  useEffect(() => {
-    const canvas = fabricCanvasRef.current;
-    if (!canvas || mode !== "edit") return;
-
-    function handleModified(e: any) {
-      const obj = e.target;
-      if (!obj?._isFacadeZone) return;
-      const idx = obj._zoneIdx;
-      const zone = zonesRef.current[idx];
-      if (!zone) return;
-
-      // Get transformed points
-      const matrix = obj.calcTransformMatrix();
-      const fabric = fabricLibRef.current;
-      const newPoints = obj.points.map((p: any) => {
-        const transformed = fabric.util.transformPoint(
-          new fabric.Point(p.x - obj.pathOffset.x, p.y - obj.pathOffset.y),
-          matrix
-        );
-        return { x: Math.round(transformed.x), y: Math.round(transformed.y) };
       });
 
-      const updated = [...zonesRef.current];
-      updated[idx] = { ...zone, points: newPoints };
-      onZonesChange?.(updated);
-    }
+      canvas.on("mouse:move", (e: any) => {
+        // Drawing: resize temp rect
+        if (isDrawingRef.current && drawStartRef.current && drawRectRef.current) {
+          const ptr = canvas.getPointer(e.e);
+          const start = drawStartRef.current;
+          drawRectRef.current.set({
+            left: Math.min(start.x, ptr.x),
+            top: Math.min(start.y, ptr.y),
+            width: Math.abs(ptr.x - start.x),
+            height: Math.abs(ptr.y - start.y),
+          });
+          canvas.requestRenderAll();
+          return;
+        }
 
-    canvas.on("object:modified", handleModified);
-    return () => { canvas.off("object:modified", handleModified); };
-  }, [mode, onZonesChange]);
+        // View mode tooltip
+        if (modeRef.current !== "view" || !e.target?._isFacadeZone) {
+          setTooltip(null);
+          return;
+        }
+        const zone = zonesRef.current[e.target._zoneIdx];
+        if (!zone) return;
+        const ptr = canvas.getPointer(e.e, true);
+        const v = zone.vacancy;
+        const lines = [
+          zone.floor_name || zone.label || `Floor ${zone.floor_number}`,
+          v ? `${Math.round(v.occupancy_rate)}% occupied` : "No data",
+          v ? `${v.occupied}/${v.total} ${v.unit_label}` : "",
+        ].filter(Boolean).join("\n");
+        setTooltip({ x: ptr.x + 12, y: ptr.y - 10, text: lines });
+      });
+
+      canvas.on("mouse:down", (e: any) => {
+        // Drawing mode: start rect
+        if (drawingModeRef.current && modeRef.current === "edit") {
+          const ptr = canvas.getPointer(e.e);
+          isDrawingRef.current = true;
+          drawStartRef.current = { x: ptr.x, y: ptr.y };
+
+          const rect = new fabric.Rect({
+            left: ptr.x,
+            top: ptr.y,
+            width: 0,
+            height: 0,
+            fill: "rgba(31,105,255,0.3)",
+            stroke: "#1F69FF",
+            strokeWidth: 2,
+            selectable: false,
+            evented: false,
+          });
+          drawRectRef.current = rect;
+          canvas.add(rect);
+        }
+      });
+
+      canvas.on("mouse:up", (e: any) => {
+        // Drawing mode: finish rect
+        if (isDrawingRef.current && drawRectRef.current) {
+          isDrawingRef.current = false;
+          const rect = drawRectRef.current;
+          const w = rect.width || 0;
+          const h = rect.height || 0;
+          canvas.remove(rect);
+          drawRectRef.current = null;
+          drawStartRef.current = null;
+
+          if (w < 20 || h < 20) return; // too small, ignore
+
+          const left = rect.left || 0;
+          const top = rect.top || 0;
+          const points = [
+            { x: Math.round(left), y: Math.round(top) },
+            { x: Math.round(left + w), y: Math.round(top) },
+            { x: Math.round(left + w), y: Math.round(top + h) },
+            { x: Math.round(left), y: Math.round(top + h) },
+          ];
+
+          // Exit drawing mode
+          drawingModeRef.current = false;
+          setDrawingUI(false);
+          canvas.defaultCursor = "default";
+
+          // Open assign modal
+          const fl = floorsRef.current;
+          setAssignModal({ points });
+          setAssignFloorId(fl[0]?.id ?? null);
+          setAssignLabel(fl[0] ? `${fl[0].number}F` : "");
+          return;
+        }
+
+        // Click on zone (non-drawing)
+        if (e.target?._isFacadeZone) {
+          const zone = zonesRef.current[e.target._zoneIdx];
+          if (!zone) return;
+          if (modeRef.current === "view") {
+            onZoneClickRef.current?.(zone);
+          } else if (modeRef.current === "edit") {
+            setEditingZoneIdx(e.target._zoneIdx);
+          }
+        }
+      });
+
+      canvas.on("object:modified", (e: any) => {
+        const obj = e.target;
+        if (!obj?._isFacadeZone || modeRef.current !== "edit") return;
+        const idx = obj._zoneIdx;
+        const zone = zonesRef.current[idx];
+        if (!zone) return;
+
+        const matrix = obj.calcTransformMatrix();
+        const newPoints = obj.points.map((p: any) => {
+          const transformed = fabric.util.transformPoint(
+            new fabric.Point(p.x - obj.pathOffset.x, p.y - obj.pathOffset.y),
+            matrix
+          );
+          return { x: Math.round(transformed.x), y: Math.round(transformed.y) };
+        });
+
+        const updated = [...zonesRef.current];
+        updated[idx] = { ...zone, points: newPoints };
+        onZonesChangeRef.current?.(updated);
+      });
+
+      // Load facade image
+      if (facadeImageUrl) {
+        const url = facadeImageUrl.startsWith("http")
+          ? facadeImageUrl
+          : `${process.env.NEXT_PUBLIC_API_URL || ""}${facadeImageUrl}`;
+
+        fabric.Image.fromURL(url, (img: any) => {
+          if (disposed || !img) return;
+          const w = img.width || 800;
+          const h = img.height || 600;
+          baseSizeRef.current = { width: w, height: h };
+          canvas.setBackgroundImage(img, () => {
+            applyResponsiveScale();
+            renderZones();
+          }, { scaleX: 1, scaleY: 1 });
+        }, { crossOrigin: "anonymous" });
+      } else {
+        applyResponsiveScale();
+      }
+    })();
+
+    return () => {
+      disposed = true;
+      fabricCanvasRef.current?.dispose();
+      fabricCanvasRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [facadeImageUrl]);
 
   // ── Resize ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -381,6 +362,37 @@ export default function FacadeCanvas({
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, [applyResponsiveScale]);
+
+  // ── Start / stop drawing mode ──────────────────────────────────────
+  function toggleDrawingMode() {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+
+    const next = !drawingModeRef.current;
+    drawingModeRef.current = next;
+    setDrawingUI(next);
+    setEditingZoneIdx(null);
+
+    if (next) {
+      // Disable selection on all objects, change cursor
+      canvas.selection = false;
+      canvas.defaultCursor = "crosshair";
+      canvas.forEachObject((obj: any) => {
+        obj.selectable = false;
+        obj.evented = false;
+      });
+    } else {
+      // Re-enable
+      canvas.defaultCursor = "default";
+      canvas.forEachObject((obj: any) => {
+        if (obj._isFacadeZone) {
+          obj.selectable = true;
+          obj.evented = true;
+        }
+      });
+    }
+    canvas.requestRenderAll();
+  }
 
   // ── Assign modal handlers ──────────────────────────────────────────
   function handleAssignSave() {
@@ -430,7 +442,7 @@ export default function FacadeCanvas({
         <canvas ref={canvasElRef} />
       </div>
 
-      {/* Tooltip */}
+      {/* Tooltip — pointer-events: none is critical */}
       {tooltip && (
         <div
           style={{
@@ -456,19 +468,19 @@ export default function FacadeCanvas({
       {mode === "edit" && (
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
           <button
-            onClick={() => { setDrawing(!drawing); setEditingZoneIdx(null); }}
+            onClick={toggleDrawingMode}
             style={{
               padding: "6px 14px",
-              border: drawing ? "2px solid #1F69FF" : "1px solid #d1d5db",
+              border: drawingUI ? "2px solid #1F69FF" : "1px solid #d1d5db",
               borderRadius: 6,
-              background: drawing ? "#eff6ff" : "white",
+              background: drawingUI ? "#eff6ff" : "white",
               fontSize: 13,
               fontWeight: 500,
               cursor: "pointer",
-              color: drawing ? "#1F69FF" : "#374151",
+              color: drawingUI ? "#1F69FF" : "#374151",
             }}
           >
-            {drawing ? "Drawing... (drag on facade)" : "+ Add Zone"}
+            {drawingUI ? "Drawing... (drag on facade)" : "+ Add Zone"}
           </button>
         </div>
       )}
