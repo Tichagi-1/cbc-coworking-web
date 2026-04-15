@@ -25,7 +25,9 @@ interface Props {
 export default function EditResourceModal({ resource, onSave, onClose }: Props) {
   const [name, setName] = useState(resource.name);
   const [status, setStatus] = useState<string>(resource.status || "vacant");
+  const [tenantId, setTenantId] = useState<number | null>(resource.tenant_id ?? null);
   const [tenantName, setTenantName] = useState(resource.tenant_name || "");
+  const [tenants, setTenants] = useState<{ id: number; company_name: string }[]>([]);
   const [areaM2, setAreaM2] = useState(resource.area_m2 || 0);
   const [seats, setSeats] = useState(resource.seats || 0);
   const [monthlyRate, setMonthlyRate] = useState(resource.monthly_rate || 0);
@@ -43,11 +45,17 @@ export default function EditResourceModal({ resource, onSave, onClose }: Props) 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const isLeasableType = resource.resource_type === "office" || resource.resource_type === "hot_desk" || resource.resource_type === "open_space";
+  const tenantRequired = isLeasableType && (status === "occupied" || status === "reserved") && !tenantId;
+
   useEffect(() => {
-    api.get<{ id: number; name: string | null; number: number }[]>("/buildings/1/floors")
+    api.get<{ id: number; name: string | null; number: number }[]>(`/buildings/${resource.building_id}/floors`)
       .then((r) => setFloors(r.data))
       .catch(() => {});
-  }, []);
+    api.get<{ id: number; company_name: string }[]>("/tenants/")
+      .then((r) => setTenants(r.data))
+      .catch(() => {});
+  }, [resource.building_id]);
 
   // Photos
   const [photos, setPhotos] = useState<string[]>(resource.photos || []);
@@ -136,11 +144,13 @@ export default function EditResourceModal({ resource, onSave, onClose }: Props) 
   };
 
   const handleSave = async () => {
+    if (tenantRequired) return;
     setSaving(true);
     setError("");
     try {
       const payload: Record<string, unknown> = { name, status };
-      if (status === "occupied") payload.tenant_name = tenantName;
+      payload.tenant_id = status === "vacant" ? null : tenantId;
+      payload.tenant_name = status === "vacant" ? null : (tenantName || null);
       if (
         resource.resource_type === "office" ||
         resource.resource_type === "hot_desk" ||
@@ -279,7 +289,14 @@ export default function EditResourceModal({ resource, onSave, onClose }: Props) 
             Status
             <select
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setStatus(v);
+                if (v === "vacant") {
+                  setTenantId(null);
+                  setTenantName("");
+                }
+              }}
               style={inputStyle}
             >
               <option value="vacant">Vacant</option>
@@ -288,16 +305,38 @@ export default function EditResourceModal({ resource, onSave, onClose }: Props) 
             </select>
           </label>
 
-          {status === "occupied" && (
+          <div>
             <label style={labelStyle}>
-              Tenant Name
-              <input
-                value={tenantName}
-                onChange={(e) => setTenantName(e.target.value)}
-                style={inputStyle}
-              />
+              Tenant {tenantRequired && <span style={{ color: "#dc2626" }}>*</span>}
             </label>
-          )}
+            <select
+              value={tenantId ?? ""}
+              onChange={(e) => {
+                const id = e.target.value ? Number(e.target.value) : null;
+                setTenantId(id);
+                if (id) {
+                  const t = tenants.find((x) => x.id === id);
+                  if (t) setTenantName(t.company_name);
+                  if (status === "vacant") setStatus("occupied");
+                } else {
+                  setTenantName("");
+                  setStatus("vacant");
+                }
+              }}
+              style={{
+                ...inputStyle,
+                borderColor: tenantRequired ? "#f87171" : "#d1d5db",
+              }}
+            >
+              <option value="">— No tenant —</option>
+              {tenants.map((t) => (
+                <option key={t.id} value={t.id}>{t.company_name}</option>
+              ))}
+            </select>
+            {tenantRequired && (
+              <p style={{ fontSize: 12, color: "#dc2626", marginTop: 4 }}>Required for occupied/reserved office</p>
+            )}
+          </div>
 
           {(resource.resource_type === "office" ||
             resource.resource_type === "hot_desk" ||
@@ -527,16 +566,16 @@ export default function EditResourceModal({ resource, onSave, onClose }: Props) 
           </button>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || tenantRequired}
             style={{
               padding: "8px 18px",
               border: "none",
               borderRadius: 6,
               background: "#003DA5",
               color: "white",
-              cursor: "pointer",
+              cursor: saving || tenantRequired ? "default" : "pointer",
               fontSize: 14,
-              opacity: saving ? 0.7 : 1,
+              opacity: saving || tenantRequired ? 0.5 : 1,
             }}
           >
             {saving ? "Saving..." : "Save changes"}
