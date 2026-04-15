@@ -88,6 +88,7 @@ export default function MapPage() {
   const [uploading, setUploading] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [zoneColors, setZoneColors] = useState<ZoneColorConfig | undefined>(undefined);
+  const [floorSettingsOpen, setFloorSettingsOpen] = useState(false);
 
   // ── Building + zone colors ──────────────────────────────────────────────
   useEffect(() => {
@@ -572,6 +573,16 @@ export default function MapPage() {
                 <>
                   <button
                     type="button"
+                    onClick={() => setFloorSettingsOpen(true)}
+                    title="Floor settings"
+                    className="p-2 text-gray-500 hover:text-cbc-blue rounded-md hover:bg-gray-100"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
                     onClick={startRenameFloor}
                     title="Rename floor"
                     className="p-2 text-gray-500 hover:text-cbc-blue rounded-md hover:bg-gray-100"
@@ -1034,6 +1045,105 @@ export default function MapPage() {
           </div>
         </div>
       )}
+
+      {/* Floor settings modal */}
+      {floorSettingsOpen && currentFloor && (
+        <FloorSettingsModal
+          floor={currentFloor}
+          onClose={() => setFloorSettingsOpen(false)}
+          onSaved={async () => {
+            setFloorSettingsOpen(false);
+            if (floorId) await loadFloors(floorId);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function FloorSettingsModal({
+  floor,
+  onClose,
+  onSaved,
+}: {
+  floor: Floor;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [totalArea, setTotalArea] = useState(String((floor as any).total_area_m2 ?? ""));
+  const [totalSeats, setTotalSeats] = useState(String((floor as any).total_seats ?? ""));
+  const [metric, setMetric] = useState((floor as any).vacancy_metric || "area");
+  const [saving, setSaving] = useState(false);
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)" }}
+      onMouseDown={onClose}
+    >
+      <div
+        style={{ background: "white", borderRadius: 12, padding: 28, width: 400, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <h3 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 600 }}>
+          Floor Settings — {floor.name || `Floor ${floor.number}`}
+        </h3>
+
+        <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+          Total Area (m²)
+          <input type="number" min="0" step="0.5" value={totalArea}
+            onChange={(e) => setTotalArea(e.target.value)}
+            style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }} />
+        </label>
+
+        <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+          Total Seats
+          <input type="number" min="0" value={totalSeats}
+            onChange={(e) => setTotalSeats(e.target.value)}
+            style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }} />
+        </label>
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "#374151", marginBottom: 6 }}>Vacancy Metric</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {(["area", "seats"] as const).map((m) => (
+              <button key={m} type="button" onClick={() => setMetric(m)}
+                style={{
+                  flex: 1, padding: "8px 0", borderRadius: 6, cursor: "pointer", fontSize: 13,
+                  border: `2px solid ${metric === m ? "#003DA5" : "#e5e7eb"}`,
+                  background: metric === m ? "#eff6ff" : "white",
+                  color: metric === m ? "#003DA5" : "#6b7280",
+                  fontWeight: metric === m ? 600 : 400,
+                }}>
+                {m === "area" ? "📐 By Area (m²)" : "💺 By Seats"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Cancel</button>
+          <button
+            disabled={saving}
+            onClick={async () => {
+              setSaving(true);
+              try {
+                await api.patch(`/buildings/1/floors/${floor.id}`, {
+                  total_area_m2: totalArea ? parseFloat(totalArea) : null,
+                  total_seats: totalSeats ? parseInt(totalSeats, 10) : null,
+                  vacancy_metric: metric,
+                });
+                await onSaved();
+              } catch {
+                alert("Failed to save");
+              } finally {
+                setSaving(false);
+              }
+            }}
+            style={{ padding: "8px 16px", background: "#003DA5", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, opacity: saving ? 0.7 : 1 }}>
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

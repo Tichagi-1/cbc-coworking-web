@@ -93,37 +93,50 @@ export default function AnalyticsPage() {
       {vacancy && (
         <div style={{ background: "white", borderRadius: 10, padding: 20, border: "1px solid #e5e7eb", marginBottom: 16 }}>
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, color: "#111827" }}>Vacancy Overview</div>
+
+          {/* Building */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
-              <span style={{ fontWeight: 500 }}>Building Total</span>
+              <span style={{ fontWeight: 500 }}>Building</span>
               <span style={{ color: "#6b7280" }}>
-                {vacancy.building.occupied}/{vacancy.building.total} occupied ({vacancy.building.occupancy_rate}%)
+                {vacancy.building.occupied_area_m2} / {vacancy.building.total_area_m2} m² occupied
+                {vacancy.building.vacancy_rate != null && ` · ${vacancy.building.vacancy_rate}% vacant`}
               </span>
             </div>
-            <div style={{ height: 10, background: "#f3f4f6", borderRadius: 5, overflow: "hidden" }}>
-              <div style={{
-                height: "100%", borderRadius: 5, transition: "width 0.5s ease",
-                background: vacancy.building.occupancy_rate > 70 ? "#22c55e" : vacancy.building.occupancy_rate > 40 ? "#f59e0b" : "#ef4444",
-                width: `${vacancy.building.occupancy_rate}%`,
-              }} />
-            </div>
-            <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: 12 }}>
-              <span style={{ color: "#22c55e" }}>Occupied: {vacancy.building.occupied}</span>
-              <span style={{ color: "#ef4444" }}>Vacant: {vacancy.building.vacant}</span>
-              <span style={{ color: "#f59e0b" }}>Reserved: {vacancy.building.reserved}</span>
-            </div>
+            {vacancy.building.total_area_m2 > 0 && (
+              <div style={{ height: 10, background: "#f3f4f6", borderRadius: 5, overflow: "hidden" }}>
+                <div style={{
+                  height: "100%", borderRadius: 5, background: "#003DA5", transition: "width 0.5s ease",
+                  width: `${100 - (vacancy.building.vacancy_rate ?? 0)}%`,
+                }} />
+              </div>
+            )}
           </div>
-          {vacancy.by_floor.map((f: any) => (
-            <div key={f.floor_id} style={{ marginBottom: 10 }}>
+
+          {/* Per floor */}
+          {(vacancy.floors || []).map((f: any) => (
+            <div key={f.floor_id} style={{ marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                <span style={{ color: "#374151", fontWeight: 500 }}>{f.floor_name}</span>
-                <span style={{ color: "#6b7280" }}>{f.occupied}/{f.total} · {f.occupancy_rate}%</span>
+                <span style={{ color: "#374151", fontWeight: 500 }}>
+                  {f.floor_name}
+                  <span style={{ marginLeft: 6, fontSize: 10, padding: "1px 5px", borderRadius: 4, background: f.vacancy_metric === "seats" ? "#eff6ff" : "#f0fdf4", color: f.vacancy_metric === "seats" ? "#2563eb" : "#16a34a" }}>
+                    {f.unit_label}
+                  </span>
+                </span>
+                <span style={{ color: "#6b7280" }}>
+                  {f.configured
+                    ? `${f.occupied} / ${f.total} ${f.unit_label} · ${f.vacancy_rate ?? 0}% vacant`
+                    : "Configure floor settings"}
+                </span>
               </div>
-              <div style={{ height: 7, background: "#f3f4f6", borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ height: "100%", borderRadius: 4, background: "#003DA5", width: `${f.occupancy_rate}%` }} />
-              </div>
+              {f.configured && (
+                <div style={{ height: 7, background: "#f3f4f6", borderRadius: 4, overflow: "hidden" }}>
+                  <div style={{ height: "100%", borderRadius: 4, background: "#003DA5", width: `${100 - (f.vacancy_rate ?? 0)}%` }} />
+                </div>
+              )}
             </div>
           ))}
+
           {vacancy.unassigned_count > 0 && (
             <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>{vacancy.unassigned_count} resources not assigned to a floor</div>
           )}
