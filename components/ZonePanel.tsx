@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import { api } from "@/lib/api";
 import type {
   Resource,
   ResourceType,
@@ -18,6 +19,7 @@ export interface ResourcePatchPayload {
   rate_coins_per_hour?: number;
   rate_money_per_hour?: number;
   status?: UnitStatus;
+  tenant_id?: number | null;
   tenant_name?: string | null;
 }
 
@@ -64,7 +66,9 @@ export default function ZonePanel({
   // Common
   const [name, setName] = useState("");
   const [status, setStatus] = useState<UnitStatus>("vacant");
+  const [tenantId, setTenantId] = useState<number | null>(null);
   const [tenantName, setTenantName] = useState("");
+  const [tenants, setTenants] = useState<{ id: number; company_name: string }[]>([]);
 
   // Office / hot_desk / open_space
   const [area, setArea] = useState("0");
@@ -80,7 +84,9 @@ export default function ZonePanel({
     if (resource) {
       setName(resource.name);
       setStatus(resource.status);
+      setTenantId(resource.tenant_id ?? null);
       setTenantName(resource.tenant_name ?? "");
+      api.get<{ id: number; company_name: string }[]>("/tenants/").then((r) => setTenants(r.data)).catch(() => {});
       setArea(String(resource.area_m2 ?? 0));
       setSeats(String(resource.seats ?? 1));
       setRate(String(resource.monthly_rate ?? 0));
@@ -102,6 +108,7 @@ export default function ZonePanel({
     const patch: ResourcePatchPayload = {
       name: name.trim(),
       status,
+      tenant_id: tenantId,
       tenant_name: tenantName.trim() || null,
     };
 
@@ -295,20 +302,32 @@ export default function ZonePanel({
                 </select>
               </div>
 
-              {status === "occupied" && (
-                <div>
-                  <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
-                    Tenant
-                  </label>
-                  <input
-                    type="text"
-                    value={tenantName}
-                    onChange={(e) => setTenantName(e.target.value)}
-                    placeholder="Tenant company or person"
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                  />
-                </div>
-              )}
+              <div>
+                <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+                  Tenant
+                </label>
+                <select
+                  value={tenantId ?? ""}
+                  onChange={(e) => {
+                    const id = e.target.value ? Number(e.target.value) : null;
+                    setTenantId(id);
+                    if (id) {
+                      const t = tenants.find((x) => x.id === id);
+                      if (t) setTenantName(t.company_name);
+                      setStatus("occupied");
+                    } else {
+                      setTenantName("");
+                      setStatus("vacant");
+                    }
+                  }}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
+                >
+                  <option value="">— Vacant (no tenant) —</option>
+                  {tenants.map((t) => (
+                    <option key={t.id} value={t.id}>{t.company_name}</option>
+                  ))}
+                </select>
+              </div>
 
               {(resource.resource_type === "office" ||
                 resource.resource_type === "hot_desk" ||

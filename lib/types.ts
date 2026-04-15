@@ -47,6 +47,7 @@ export interface Resource {
   status: UnitStatus;
   description: string | null;
   photos: string[] | null;
+  tenant_id: number | null;
   tenant_name: string | null;
 
   // office / hot_desk / open_space
