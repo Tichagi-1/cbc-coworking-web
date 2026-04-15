@@ -27,6 +27,16 @@ export interface ZoneColorConfig {
   zoom_cabin: string;
   vacant_border: string;
   occupied_border: string;
+  // Per-type, per-status fills
+  office_occupied: string;
+  office_vacant: string;
+  office_reserved: string;
+  open_space_occupied: string;
+  open_space_vacant: string;
+  hot_desk_occupied: string;
+  hot_desk_vacant: string;
+  opacity: number;
+  opacity_hover: number;
 }
 
 interface FloorCanvasProps {
@@ -111,10 +121,19 @@ const DEFAULT_COLORS: ZoneColorConfig = {
   hot_desk: "#60a5fa",
   open_space: "#fb923c",
   amenity: "#94a3b8",
-  event_zone: "#f87171",
-  zoom_cabin: "#c084fc",
+  event_zone: "#DC2626",
+  zoom_cabin: "#9333EA",
   vacant_border: "#ef4444",
   occupied_border: "#22c55e",
+  office_occupied: "#22C55E",
+  office_vacant: "#EF4444",
+  office_reserved: "#EAB308",
+  open_space_occupied: "#059669",
+  open_space_vacant: "#EF4444",
+  hot_desk_occupied: "#0891B2",
+  hot_desk_vacant: "#EF4444",
+  opacity: 0.35,
+  opacity_hover: 0.5,
 };
 
 const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function FloorCanvas({
@@ -248,6 +267,20 @@ const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function Flo
         }
       });
 
+      // ── Hover opacity boost ─────────────────────────────────────────
+      canvas.on("mouse:over", (opt: any) => {
+        const t = opt.target;
+        if (!t?.data || t._hoverOpacity == null) return;
+        t.set("opacity", t._hoverOpacity);
+        canvas.requestRenderAll();
+      });
+      canvas.on("mouse:out", (opt: any) => {
+        const t = opt.target;
+        if (!t?.data || t._baseOpacity == null) return;
+        t.set("opacity", t._baseOpacity);
+        canvas.requestRenderAll();
+      });
+
       renderScene();
     })();
 
@@ -321,40 +354,53 @@ const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function Flo
 
     const drawZones = () => {
       zones.forEach((z) => {
-        const rtype = (z.resource_type || "office") as keyof ZoneColorConfig;
+        const rtype = (z.resource_type || "office") as ResourceType;
         const status = z.status;
         const isSelected = selectedZoneId != null && selectedZoneId === z.id;
-
-        // Type-specific fill from settings colors
-        const typeColor = colors[rtype] || colors.office;
 
         let fillColor: string;
         let fillOpacity: number;
         let borderColor: string;
         let borderWidth: number;
 
-        if (rtype === "meeting_room") {
-          // Meeting rooms: subtle type fill, border shows status
-          fillColor = typeColor;
-          fillOpacity = 0.2;
-          borderColor = status === "occupied"
-            ? colors.occupied_border
-            : status === "reserved" ? "#eab308" : colors.vacant_border;
-          borderWidth = 3;
-        } else if (z.resource_id) {
-          // Other types: fill opacity by status, border by status
-          fillColor = typeColor;
-          fillOpacity = status === "occupied" ? 0.55 : 0.25;
-          borderColor = status === "occupied"
-            ? colors.occupied_border
-            : status === "reserved" ? "#eab308" : colors.vacant_border;
-          borderWidth = 2.5;
-        } else {
+        const pickLeasableFill = (t: "office" | "open_space" | "hot_desk") => {
+          if (status === "reserved") return colors.office_reserved;
+          const occKey = `${t}_occupied` as "office_occupied" | "open_space_occupied" | "hot_desk_occupied";
+          const vacKey = `${t}_vacant` as "office_vacant" | "open_space_vacant" | "hot_desk_vacant";
+          return status === "occupied" ? colors[occKey] : colors[vacKey];
+        };
+
+        if (!z.resource_id) {
           // Unmapped
           fillColor = UNMAPPED_FILL;
           fillOpacity = UNMAPPED_FILL_OPACITY;
           borderColor = UNKNOWN_TYPE_BORDER;
           borderWidth = UNKNOWN_TYPE_BORDER_WIDTH;
+        } else if (rtype === "office" || rtype === "open_space" || rtype === "hot_desk") {
+          // Leasable: status-driven fill
+          fillColor = pickLeasableFill(rtype);
+          fillOpacity = colors.opacity;
+          borderColor = status === "occupied"
+            ? colors.occupied_border
+            : status === "reserved" ? "#eab308" : colors.vacant_border;
+          borderWidth = 2.5;
+        } else if (rtype === "meeting_room") {
+          fillColor = colors.meeting_room;
+          fillOpacity = Math.min(colors.opacity, 0.3);
+          borderColor = status === "occupied"
+            ? colors.occupied_border
+            : status === "reserved" ? "#eab308" : colors.vacant_border;
+          borderWidth = 3;
+        } else {
+          // Amenity types: type color, no status
+          const typeColor =
+            rtype === "zoom_cabin" ? colors.zoom_cabin :
+            rtype === "event_zone" ? colors.event_zone :
+            colors.amenity;
+          fillColor = typeColor;
+          fillOpacity = colors.opacity;
+          borderColor = UNKNOWN_TYPE_BORDER;
+          borderWidth = 2;
         }
 
         const poly = new fabric.Polygon(z.points, {
@@ -369,6 +415,8 @@ const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function Flo
           objectCaching: false,
         });
         poly.data = z;
+        (poly as any)._baseOpacity = fillOpacity;
+        (poly as any)._hoverOpacity = colors.opacity_hover;
         canvas.add(poly);
 
         const area = polygonArea(z.points);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 
 const TABS = ["General", "Branding", "Operations", "Roles", "Salto", "Users"] as const;
@@ -187,52 +187,7 @@ export default function SettingsPage() {
             </div>
           </label>
 
-          {/* Zone Colors */}
-          <div style={{ marginTop: 20 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Zone Fill Colors</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {[
-                { key: "color_office", label: "Office" },
-                { key: "color_meeting_room", label: "Meeting Room" },
-                { key: "color_hot_desk", label: "Hot Desk" },
-                { key: "color_open_space", label: "Open Space" },
-                { key: "color_amenity", label: "Amenity" },
-              ].map(({ key, label }) => (
-                <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#374151" }}>
-                  <input
-                    type="color"
-                    value={settings[key] || "#94a3b8"}
-                    onChange={(e) => {
-                      setSettings((p) => ({ ...p, [key]: e.target.value }));
-                      saveSetting(key, e.target.value);
-                    }}
-                    style={{ width: 36, height: 36, border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer", padding: 2 }}
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 600, margin: "16px 0 12px" }}>Border Colors (Status)</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {[
-                { key: "color_vacant_border", label: "Vacant border" },
-                { key: "color_occupied_border", label: "Occupied border" },
-              ].map(({ key, label }) => (
-                <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#374151" }}>
-                  <input
-                    type="color"
-                    value={settings[key] || "#94a3b8"}
-                    onChange={(e) => {
-                      setSettings((p) => ({ ...p, [key]: e.target.value }));
-                      saveSetting(key, e.target.value);
-                    }}
-                    style={{ width: 36, height: 36, border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer", padding: 2 }}
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
-          </div>
+          <ZoneColorsSection settings={settings} setSettings={setSettings} setToast={setToast} />
         </div>
       )}
 
@@ -760,6 +715,136 @@ function SaltoTab({
           {testResult}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Zone Colors Section ──────────────────────────────────────────────────
+
+const COLOR_DEFAULTS: Record<string, string> = {
+  color_office_occupied: "#22C55E",
+  color_office_vacant: "#EF4444",
+  color_office_reserved: "#EAB308",
+  color_open_space_occupied: "#059669",
+  color_open_space_vacant: "#EF4444",
+  color_hot_desk_occupied: "#0891B2",
+  color_hot_desk_vacant: "#EF4444",
+  color_meeting_room_fill: "#7C3AED",
+  color_zoom_cabin: "#9333EA",
+  color_event_zone: "#DC2626",
+  zone_opacity: "0.35",
+  zone_opacity_hover: "0.5",
+};
+
+const COLOR_GROUPS: { title: string; items: { key: string; label: string }[] }[] = [
+  { title: "Офисы (Office)", items: [
+    { key: "color_office_occupied", label: "Occupied" },
+    { key: "color_office_vacant", label: "Vacant" },
+    { key: "color_office_reserved", label: "Reserved" },
+  ]},
+  { title: "Open Space", items: [
+    { key: "color_open_space_occupied", label: "Occupied" },
+    { key: "color_open_space_vacant", label: "Vacant" },
+  ]},
+  { title: "Hot Desk", items: [
+    { key: "color_hot_desk_occupied", label: "Occupied" },
+    { key: "color_hot_desk_vacant", label: "Vacant" },
+  ]},
+  { title: "Переговорные и зоны", items: [
+    { key: "color_meeting_room_fill", label: "Meeting Room" },
+    { key: "color_zoom_cabin", label: "Zoom Cabin" },
+    { key: "color_event_zone", label: "Event Zone" },
+  ]},
+];
+
+function ZoneColorsSection({
+  settings, setSettings, setToast,
+}: {
+  settings: Record<string, string>;
+  setSettings: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  setToast: (t: string | null) => void;
+}) {
+  const debouncers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const update = (key: string, value: string) => {
+    setSettings((p) => ({ ...p, [key]: value }));
+    if (debouncers.current[key]) clearTimeout(debouncers.current[key]);
+    debouncers.current[key] = setTimeout(async () => {
+      try {
+        await api.patch("/settings/colors", { [key]: value });
+        setToast("Цвет сохранён");
+        setTimeout(() => setToast(null), 1500);
+      } catch { /* noop */ }
+    }, 500);
+  };
+
+  const resetDefaults = async () => {
+    if (!confirm("Сбросить все цвета зон к значениям по умолчанию?")) return;
+    setSettings((p) => ({ ...p, ...COLOR_DEFAULTS }));
+    try {
+      await api.patch("/settings/colors", COLOR_DEFAULTS);
+      setToast("Сброшено по умолчанию");
+      setTimeout(() => setToast(null), 1500);
+    } catch { /* noop */ }
+  };
+
+  const pickerRow = (key: string, label: string) => (
+    <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#374151", marginBottom: 6 }}>
+      <input
+        type="color"
+        value={settings[key] || COLOR_DEFAULTS[key] || "#94a3b8"}
+        onChange={(e) => update(key, e.target.value)}
+        style={{ width: 36, height: 36, border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer", padding: 2 }}
+      />
+      <span style={{ display: "inline-block", width: 18, height: 18, borderRadius: 4, background: settings[key] || COLOR_DEFAULTS[key], border: "1px solid #e5e7eb" }} />
+      <span style={{ minWidth: 100 }}>{label}</span>
+      <span style={{ fontFamily: "monospace", fontSize: 11, color: "#9ca3af" }}>{settings[key] || COLOR_DEFAULTS[key]}</span>
+    </label>
+  );
+
+  const opacity = parseFloat(settings.zone_opacity || "0.35");
+  const opacityHover = parseFloat(settings.zone_opacity_hover || "0.5");
+
+  return (
+    <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #e5e7eb" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ fontSize: 15, fontWeight: 600 }}>Цвета зон</div>
+        <button onClick={resetDefaults}
+          style={{ padding: "6px 12px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", fontSize: 12, cursor: "pointer", color: "#374151" }}>
+          Сбросить по умолчанию
+        </button>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        {COLOR_GROUPS.map((g) => (
+          <div key={g.title}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 8 }}>{g.title}</div>
+            {g.items.map((it) => pickerRow(it.key, it.label))}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 8 }}>Прозрачность</div>
+        <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
+          Заливка: <strong style={{ color: "#111827" }}>{opacity.toFixed(2)}</strong>
+          <input
+            type="range" min={0.1} max={0.8} step={0.05}
+            value={opacity}
+            onChange={(e) => update("zone_opacity", e.target.value)}
+            style={{ display: "block", width: 320, marginTop: 4 }}
+          />
+        </label>
+        <label style={{ display: "block", fontSize: 12, color: "#6b7280" }}>
+          При наведении: <strong style={{ color: "#111827" }}>{opacityHover.toFixed(2)}</strong>
+          <input
+            type="range" min={0.2} max={0.9} step={0.05}
+            value={opacityHover}
+            onChange={(e) => update("zone_opacity_hover", e.target.value)}
+            style={{ display: "block", width: 320, marginTop: 4 }}
+          />
+        </label>
+      </div>
     </div>
   );
 }

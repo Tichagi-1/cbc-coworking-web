@@ -4,6 +4,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Floor } from "@/lib/types";
+import { api } from "@/lib/api";
+
+function hexToRgba(hex: string, alpha: number): string {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex.trim());
+  if (!m) return `rgba(156,163,175,${alpha})`;
+  const r = parseInt(m[1], 16), g = parseInt(m[2], 16), b = parseInt(m[3], 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
 export interface FacadeVacancy {
   metric: string;
@@ -33,19 +41,35 @@ interface Props {
   onZonesChange?: (zones: FacadeZoneData[]) => void;
 }
 
-function getOccFill(rate: number | null | undefined): string {
-  if (rate == null) return "rgba(156,163,175,0.15)";
-  if (rate >= 70) return "rgba(34,197,94,0.25)";
-  if (rate >= 40) return "rgba(234,179,8,0.25)";
-  return "rgba(239,68,68,0.25)";
+interface FacadePalette {
+  occupied: string;  // hex
+  vacant: string;    // hex
+  reserved: string;  // hex
+  opacity: number;
+  opacityHover: number;
 }
 
-const HOVER_FILL_BOOST: Record<string, string> = {
-  "rgba(156,163,175,0.15)": "rgba(156,163,175,0.3)",
-  "rgba(34,197,94,0.25)": "rgba(34,197,94,0.4)",
-  "rgba(234,179,8,0.25)": "rgba(234,179,8,0.4)",
-  "rgba(239,68,68,0.25)": "rgba(239,68,68,0.4)",
+const DEFAULT_PALETTE: FacadePalette = {
+  occupied: "#22C55E",
+  vacant: "#EF4444",
+  reserved: "#EAB308",
+  opacity: 0.35,
+  opacityHover: 0.5,
 };
+
+function getOccFill(rate: number | null | undefined, pal: FacadePalette): string {
+  if (rate == null) return hexToRgba("#9CA3AF", pal.opacity * 0.5);
+  if (rate >= 70) return hexToRgba(pal.occupied, pal.opacity);
+  if (rate >= 40) return hexToRgba(pal.reserved, pal.opacity);
+  return hexToRgba(pal.vacant, pal.opacity);
+}
+
+function hoverFill(baseFill: string, pal: FacadePalette): string {
+  // Re-use base hex but swap alpha to hover opacity
+  const m = /^rgba\((\d+),(\d+),(\d+),/.exec(baseFill);
+  if (!m) return baseFill;
+  return `rgba(${m[1]},${m[2]},${m[3]},${pal.opacityHover})`;
+}
 
 export default function FacadeCanvas({
   facadeImageUrl,
@@ -75,6 +99,32 @@ export default function FacadeCanvas({
 
   // Tooltip
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
+
+  // Palette (from settings)
+  const paletteRef = useRef<FacadePalette>(DEFAULT_PALETTE);
+  useEffect(() => {
+    api.get<Record<string, string>>("/settings/colors")
+      .then((r) => {
+        const s = r.data;
+        paletteRef.current = {
+          occupied: s.color_office_occupied || DEFAULT_PALETTE.occupied,
+          vacant: s.color_office_vacant || DEFAULT_PALETTE.vacant,
+          reserved: s.color_office_reserved || DEFAULT_PALETTE.reserved,
+          opacity: parseFloat(s.zone_opacity || "") || DEFAULT_PALETTE.opacity,
+          opacityHover: parseFloat(s.zone_opacity_hover || "") || DEFAULT_PALETTE.opacityHover,
+        };
+        // Force re-render of zones once palette is loaded
+        const canvas = fabricCanvasRef.current;
+        if (canvas) {
+          const objs = canvas.getObjects().filter((o: any) => o._isFacadeZone);
+          objs.forEach((o: any) => canvas.remove(o));
+          canvas.requestRenderAll();
+          // Trigger renderZones via state
+          setTooltip((t) => t);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Drawing state — all refs to avoid stale closures
   const drawingModeRef = useRef(false);
@@ -121,7 +171,7 @@ export default function FacadeCanvas({
       if (!zone.points || zone.points.length < 3) return;
 
       const occRate = zone.vacancy?.occupancy_rate;
-      const fill = getOccFill(occRate);
+      const fill = getOccFill(occRate, paletteRef.current);
 
       const poly = new fabric.Polygon(
         zone.points.map((p: any) => ({ x: p.x, y: p.y })),
@@ -185,7 +235,7 @@ export default function FacadeCanvas({
       canvas.on("mouse:over", (e: any) => {
         if (modeRef.current !== "view" || !e.target?._isFacadeZone) return;
         const baseFill = e.target._baseFill || "rgba(156,163,175,0.15)";
-        e.target.set("fill", HOVER_FILL_BOOST[baseFill] || baseFill);
+        e.target.set("fill", hoverFill(baseFill, paletteRef.current));
         canvas.requestRenderAll();
       });
 

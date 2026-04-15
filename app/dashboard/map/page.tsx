@@ -98,24 +98,33 @@ export default function MapPage() {
         setBuilding(res.data.find((b) => b.id === BUILDING_ID) ?? null)
       )
       .catch((e) => setError(e?.message || "Failed to load building"));
-    // Load zone colors from settings
-    api
-      .get<Record<string, string>>("/settings")
-      .then((res) => {
-        const s = res.data;
-        setZoneColors({
-          office: s.color_office || "#4ade80",
-          meeting_room: s.color_meeting_room || "#a78bfa",
-          hot_desk: s.color_hot_desk || "#60a5fa",
-          open_space: s.color_open_space || "#fb923c",
-          amenity: s.color_amenity || "#94a3b8",
-          event_zone: s.color_event_zone || "#f87171",
-          zoom_cabin: s.color_zoom_cabin || "#c084fc",
-          vacant_border: s.color_vacant_border || "#ef4444",
-          occupied_border: s.color_occupied_border || "#22c55e",
-        });
-      })
-      .catch(() => {});
+    // Load zone colors from settings (merge /settings + /settings/colors)
+    Promise.all([
+      api.get<Record<string, string>>("/settings").catch(() => ({ data: {} as Record<string, string> })),
+      api.get<Record<string, string>>("/settings/colors").catch(() => ({ data: {} as Record<string, string> })),
+    ]).then(([a, b]) => {
+      const s = { ...a.data, ...b.data };
+      setZoneColors({
+        office: s.color_office || "#4ade80",
+        meeting_room: s.color_meeting_room_fill || s.color_meeting_room || "#7C3AED",
+        hot_desk: s.color_hot_desk || "#60a5fa",
+        open_space: s.color_open_space || "#fb923c",
+        amenity: s.color_amenity || "#94a3b8",
+        event_zone: s.color_event_zone || "#DC2626",
+        zoom_cabin: s.color_zoom_cabin || "#9333EA",
+        vacant_border: s.color_vacant_border || "#EF4444",
+        occupied_border: s.color_occupied_border || "#22C55E",
+        office_occupied: s.color_office_occupied || "#22C55E",
+        office_vacant: s.color_office_vacant || "#EF4444",
+        office_reserved: s.color_office_reserved || "#EAB308",
+        open_space_occupied: s.color_open_space_occupied || "#059669",
+        open_space_vacant: s.color_open_space_vacant || "#EF4444",
+        hot_desk_occupied: s.color_hot_desk_occupied || "#0891B2",
+        hot_desk_vacant: s.color_hot_desk_vacant || "#EF4444",
+        opacity: parseFloat(s.zone_opacity || "0.35") || 0.35,
+        opacity_hover: parseFloat(s.zone_opacity_hover || "0.5") || 0.5,
+      });
+    });
   }, []);
 
   // ── Floors ─────────────────────────────────────────────────────────────
