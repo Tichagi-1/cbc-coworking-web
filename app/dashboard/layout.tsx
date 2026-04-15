@@ -113,6 +113,35 @@ function DashboardShell({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
+          {/* Help — always visible */}
+          {(() => {
+            const active = pathname === "/dashboard/help";
+            return (
+              <Link
+                href="/dashboard/help"
+                title={collapsed ? "Help" : undefined}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: collapsed ? 0 : 10,
+                  padding: collapsed ? "10px 0" : "8px 12px",
+                  justifyContent: collapsed ? "center" : "flex-start",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  textDecoration: "none",
+                  color: active ? "white" : "rgba(255,255,255,0.6)",
+                  background: active ? "#003DA5" : "transparent",
+                  marginTop: "auto",
+                }}
+                onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)"; }}
+                onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+              >
+                <span style={{ fontSize: 18, width: 24, textAlign: "center", flexShrink: 0 }}>?</span>
+                {!collapsed && <span>Help</span>}
+              </Link>
+            );
+          })()}
         </nav>
 
         {!collapsed && (
