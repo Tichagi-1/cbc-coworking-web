@@ -23,6 +23,8 @@ export interface ZoneColorConfig {
   hot_desk: string;
   open_space: string;
   amenity: string;
+  event_zone: string;
+  zoom_cabin: string;
   vacant_border: string;
   occupied_border: string;
 }
@@ -51,11 +53,13 @@ const STATUS_FILL_OPACITY = 0.45;
 
 // Border color comes from the resource type (what kind of space it is).
 const TYPE_BORDER: Record<ResourceType, string> = {
-  office: "#003DA5", // CBC Blue
-  meeting_room: "#7C3AED", // purple
-  hot_desk: "#0891B2", // cyan
-  open_space: "#059669", // emerald
-  amenity: "#0EA5E9", // sky
+  office: "#003DA5",
+  meeting_room: "#7C3AED",
+  hot_desk: "#0891B2",
+  open_space: "#059669",
+  amenity: "#0EA5E9",
+  event_zone: "#DC2626",
+  zoom_cabin: "#9333EA",
 };
 const TYPE_BORDER_WIDTH = 2.5;
 
@@ -66,6 +70,8 @@ const TYPE_LETTER: Record<ResourceType, string> = {
   hot_desk: "H",
   open_space: "S",
   amenity: "A",
+  event_zone: "E",
+  zoom_cabin: "Z",
 };
 
 const UNMAPPED_FILL = "#9CA3AF";
@@ -105,6 +111,8 @@ const DEFAULT_COLORS: ZoneColorConfig = {
   hot_desk: "#60a5fa",
   open_space: "#fb923c",
   amenity: "#94a3b8",
+  event_zone: "#f87171",
+  zoom_cabin: "#c084fc",
   vacant_border: "#ef4444",
   occupied_border: "#22c55e",
 };

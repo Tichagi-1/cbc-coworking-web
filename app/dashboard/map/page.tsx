@@ -109,6 +109,8 @@ export default function MapPage() {
           hot_desk: s.color_hot_desk || "#60a5fa",
           open_space: s.color_open_space || "#fb923c",
           amenity: s.color_amenity || "#94a3b8",
+          event_zone: s.color_event_zone || "#f87171",
+          zoom_cabin: s.color_zoom_cabin || "#c084fc",
           vacant_border: s.color_vacant_border || "#ef4444",
           occupied_border: s.color_occupied_border || "#22c55e",
         });

@@ -244,6 +244,8 @@ export default function ZoneNameModal({
                 <option value="hot_desk">Hot Desk</option>
                 <option value="open_space">Open Space</option>
                 <option value="amenity">Amenity</option>
+                <option value="event_zone">Event Zone</option>
+                <option value="zoom_cabin">Zoom Cabin</option>
               </select>
             </div>
             {(type === "office" ||

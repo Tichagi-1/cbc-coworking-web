@@ -12,7 +12,9 @@ export type ResourceType =
   | "meeting_room"
   | "hot_desk"
   | "open_space"
-  | "amenity";
+  | "amenity"
+  | "event_zone"
+  | "zoom_cabin";
 
 export type RatePeriod = "month" | "day" | "biweekly" | "hour";
 

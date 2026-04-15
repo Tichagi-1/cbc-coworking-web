@@ -395,6 +395,10 @@ function UsersTab() {
     }
   };
 
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+
   const changeRole = async (userId: number, newRole: string) => {
     try {
       await api.patch(`/auth/users/${userId}`, { role: newRole });
@@ -409,6 +413,30 @@ function UsersTab() {
     try {
       await api.patch(`/auth/users/${userId}`, { is_active: active });
       loadUsers();
+    } catch (e: unknown) {
+      alert((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed");
+    }
+  };
+
+  const saveUserEdit = async (userId: number) => {
+    try {
+      await api.patch(`/auth/users/${userId}`, { name: editName, email: editEmail });
+      setEditingUserId(null);
+      loadUsers();
+      setToast("User updated");
+      setTimeout(() => setToast(""), 3000);
+    } catch (e: unknown) {
+      alert((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed");
+    }
+  };
+
+  const deleteUser = async (userId: number, userName: string) => {
+    if (!confirm(`Delete user "${userName}"? This will unlink all assigned resources.`)) return;
+    try {
+      await api.delete(`/auth/users/${userId}`);
+      loadUsers();
+      setToast("User deleted");
+      setTimeout(() => setToast(""), 3000);
     } catch (e: unknown) {
       alert((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed");
     }
@@ -444,8 +472,18 @@ function UsersTab() {
             const isSelf = u.id === currentUserId;
             return (
               <tr key={u.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                <td style={{ padding: "8px 12px", fontWeight: 500 }}>{u.name}</td>
-                <td style={{ padding: "8px 12px", color: "#6b7280" }}>{u.email}</td>
+                <td style={{ padding: "8px 12px", fontWeight: 500 }}>
+                  {editingUserId === u.id ? (
+                    <input value={editName} onChange={(e) => setEditName(e.target.value)}
+                      style={{ padding: "3px 6px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 13, width: 120 }} />
+                  ) : u.name}
+                </td>
+                <td style={{ padding: "8px 12px", color: "#6b7280" }}>
+                  {editingUserId === u.id ? (
+                    <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)}
+                      style={{ padding: "3px 6px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 13, width: 160 }} />
+                  ) : u.email}
+                </td>
                 <td style={{ padding: "8px 12px" }}>
                   {isSelf ? (
                     <span style={{ padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 600, ...(ROLE_BADGE[u.role] ? { cssText: ROLE_BADGE[u.role] } : {}) } as React.CSSProperties}>
@@ -466,13 +504,31 @@ function UsersTab() {
                   </span>
                 </td>
                 <td style={{ padding: "8px 12px" }}>
-                  {!isSelf && (
-                    <button onClick={() => toggleActive(u.id, !u.is_active)}
-                      style={{ fontSize: 12, padding: "3px 10px", border: "1px solid #d1d5db", borderRadius: 4, background: "white", cursor: "pointer",
-                        color: u.is_active ? "#dc2626" : "#16a34a" }}>
-                      {u.is_active ? "Deactivate" : "Activate"}
-                    </button>
-                  )}
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {editingUserId === u.id ? (
+                      <>
+                        <button onClick={() => saveUserEdit(u.id)} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #a7f3d0", borderRadius: 4, background: "#ecfdf5", color: "#065f46", cursor: "pointer" }}>Save</button>
+                        <button onClick={() => setEditingUserId(null)} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 4, background: "white", cursor: "pointer" }}>Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        {!isSelf && (
+                          <button onClick={() => { setEditingUserId(u.id); setEditName(u.name); setEditEmail(u.email); }}
+                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 4, background: "white", cursor: "pointer" }}>Edit</button>
+                        )}
+                        {!isSelf && (
+                          <button onClick={() => toggleActive(u.id, !u.is_active)}
+                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 4, background: "white", cursor: "pointer", color: u.is_active ? "#dc2626" : "#16a34a" }}>
+                            {u.is_active ? "Off" : "On"}
+                          </button>
+                        )}
+                        {!isSelf && (
+                          <button onClick={() => deleteUser(u.id, u.name)}
+                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #fca5a5", borderRadius: 4, background: "#fef2f2", color: "#dc2626", cursor: "pointer" }}>Del</button>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </td>
               </tr>
             );
