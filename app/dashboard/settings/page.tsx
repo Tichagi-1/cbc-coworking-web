@@ -497,7 +497,7 @@ function UsersTab() {
                   ) : (
                     <select value={u.role} onChange={(e) => changeRole(u.id, e.target.value)}
                       style={{ padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 12, cursor: "pointer" }}>
-                      {["admin", "manager", "receptionist", "tenant"].map((r) => (
+                      {["admin", "manager", "receptionist", "owner", "tenant"].map((r) => (
                         <option key={r} value={r}>{r}</option>
                       ))}
                     </select>
@@ -564,7 +564,7 @@ function UsersTab() {
             <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
               Role
               <select value={addForm.role} onChange={(e) => setAddForm((p) => ({ ...p, role: e.target.value }))} style={iStyle}>
-                {["admin", "manager", "receptionist", "tenant"].map((r) => (
+                {["admin", "manager", "receptionist", "owner", "tenant"].map((r) => (
                   <option key={r} value={r}>{r}</option>
                 ))}
               </select>
