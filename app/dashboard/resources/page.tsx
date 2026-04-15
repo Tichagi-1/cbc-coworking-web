@@ -24,6 +24,8 @@ const TYPE_TABS: { id: "all" | ResourceType; label: string }[] = [
   { id: "hot_desk", label: "Hot Desks" },
   { id: "open_space", label: "Open Space" },
   { id: "amenity", label: "Amenities" },
+  { id: "event_zone", label: "Event Zones" },
+  { id: "zoom_cabin", label: "Zoom Cabins" },
 ];
 
 const TYPE_BADGE: Record<ResourceType, string> = {
@@ -32,6 +34,8 @@ const TYPE_BADGE: Record<ResourceType, string> = {
   hot_desk: "bg-cyan-100 text-cyan-800",
   open_space: "bg-emerald-100 text-emerald-800",
   amenity: "bg-sky-100 text-sky-800",
+  event_zone: "bg-red-100 text-red-800",
+  zoom_cabin: "bg-violet-100 text-violet-800",
 };
 
 const STATUS_PILL: Record<UnitStatus, string> = {
@@ -529,6 +533,8 @@ function AddResourceModal({
               <option value="hot_desk">Hot Desk</option>
               <option value="open_space">Open Space</option>
               <option value="amenity">Amenity</option>
+              <option value="event_zone">Event Zone</option>
+              <option value="zoom_cabin">Zoom Cabin</option>
             </select>
           </div>
           <div>

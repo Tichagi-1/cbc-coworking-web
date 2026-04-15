@@ -48,6 +48,8 @@ const TYPE_LABEL: Record<ResourceType, string> = {
   hot_desk: "Hot Desk",
   open_space: "Open Space",
   amenity: "Amenity",
+  event_zone: "Event Zone",
+  zoom_cabin: "Zoom Cabin",
 };
 
 export default function ZonePanel({
