@@ -447,6 +447,30 @@ function UsersTab() {
     }
   };
 
+  // Password reset
+  const [resetUser, setResetUser] = useState<UserRow | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [resetSaving, setResetSaving] = useState(false);
+  const [resetDone, setResetDone] = useState(false);
+
+  const generatePassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+    setNewPassword(Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join(""));
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetUser || newPassword.length < 6) return;
+    setResetSaving(true);
+    try {
+      await api.patch(`/auth/users/${resetUser.id}/reset-password`, { new_password: newPassword });
+      setResetDone(true);
+    } catch (e: unknown) {
+      alert((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed");
+    } finally {
+      setResetSaving(false);
+    }
+  };
+
   const iStyle: React.CSSProperties = {
     display: "block", width: "100%", marginTop: 4, padding: "8px 10px",
     border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
@@ -522,6 +546,11 @@ function UsersTab() {
                             style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 4, background: "white", cursor: "pointer" }}>Edit</button>
                         )}
                         {!isSelf && (
+                          <button onClick={() => { setResetUser(u); setNewPassword(""); setResetDone(false); }}
+                            title="Reset password"
+                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 4, background: "white", cursor: "pointer" }}>🔑</button>
+                        )}
+                        {!isSelf && (
                           <button onClick={() => toggleActive(u.id, !u.is_active)}
                             style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 4, background: "white", cursor: "pointer", color: u.is_active ? "#dc2626" : "#16a34a" }}>
                             {u.is_active ? "Off" : "On"}
@@ -576,6 +605,58 @@ function UsersTab() {
                 {addSaving ? "Creating..." : "Create User"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset password modal */}
+      {resetUser && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setResetUser(null); }}>
+          <div style={{ background: "white", borderRadius: 12, padding: 24, maxWidth: 400, width: "100%" }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Reset Password</h3>
+            <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>{resetUser.name} ({resetUser.email})</p>
+
+            {!resetDone ? (
+              <>
+                <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                  <input
+                    type="text"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="New password (min 6 chars)"
+                    style={{ flex: 1, padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}
+                  />
+                  <button onClick={generatePassword}
+                    style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 6, background: "#f9fafb", cursor: "pointer", fontSize: 12, whiteSpace: "nowrap" }}>
+                    Generate
+                  </button>
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                  <button onClick={() => setResetUser(null)}
+                    style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>
+                    Cancel
+                  </button>
+                  <button onClick={handleResetPassword} disabled={resetSaving || newPassword.length < 6}
+                    style={{ padding: "8px 16px", background: "#003DA5", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, opacity: resetSaving || newPassword.length < 6 ? 0.5 : 1 }}>
+                    {resetSaving ? "Resetting..." : "Reset"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ padding: 12, background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: 8, marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, color: "#065f46", marginBottom: 4 }}>Password reset successfully. Copy it now:</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "monospace", color: "#111827", letterSpacing: 1 }}>{newPassword}</div>
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button onClick={() => setResetUser(null)}
+                    style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>
+                    Done
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
