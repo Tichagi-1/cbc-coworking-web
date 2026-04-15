@@ -194,7 +194,7 @@ export default function WorkspacePage() {
   };
 
   const timeSlots = useMemo(
-    () => Array.from({ length: (20 - 8) * 12 + 1 }, (_, i) => minToTime(8 * 60 + i * 5)),
+    () => Array.from({ length: (22 - 7) * 12 + 1 }, (_, i) => minToTime(7 * 60 + i * 5)),
     []
   );
 
@@ -265,7 +265,7 @@ export default function WorkspacePage() {
         {activeTab === "rooms" && (
           <>
             {/* Calendar */}
-            <div style={{ flex: 1, overflow: "auto", padding: "0 8px" }}>
+            <div style={{ flex: 1, minHeight: 400, overflowY: "auto", padding: "0 8px" }}>
               <Calendar
                 localizer={localizer}
                 events={calEvents}
@@ -274,10 +274,10 @@ export default function WorkspacePage() {
                 resourceTitleAccessor="title"
                 defaultView={Views.DAY}
                 views={[Views.DAY]}
-                step={5}
-                timeslots={12}
-                min={new Date(0, 0, 0, 8, 0)}
-                max={new Date(0, 0, 0, 20, 0)}
+                step={30}
+                timeslots={2}
+                min={new Date(0, 0, 0, 7, 0)}
+                max={new Date(0, 0, 0, 22, 0)}
                 date={new Date(selectedDate)}
                 onNavigate={(date) => setSelectedDate(date.toISOString().slice(0, 10))}
                 selectable
@@ -296,7 +296,7 @@ export default function WorkspacePage() {
                 eventPropGetter={() => ({
                   style: { background: "#003DA5", border: "none", borderRadius: 4 },
                 })}
-                style={{ height: "calc(100vh - 280px)", minHeight: 400 }}
+                style={{ height: 900 }}
               />
             </div>
 
@@ -394,9 +394,9 @@ export default function WorkspacePage() {
                 <select value={modalFrom} onChange={(e) => {
                   setModalFrom(e.target.value);
                   if (timeToMin(modalTo) <= timeToMin(e.target.value))
-                    setModalTo(minToTime(Math.min(timeToMin(e.target.value) + 60, 20 * 60)));
+                    setModalTo(minToTime(Math.min(timeToMin(e.target.value) + 60, 22 * 60)));
                 }} style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }}>
-                  {timeSlots.filter((t) => t < "20:00").map((t) => <option key={t} value={t}>{t}</option>)}
+                  {timeSlots.filter((t) => t < "22:00").map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </label>
               <label style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>

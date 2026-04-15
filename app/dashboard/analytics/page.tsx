@@ -6,6 +6,7 @@ import {
   Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend,
 } from "recharts";
 import { api } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
 
 const ACCENT = "#003DA5";
 const COLORS = ["#003DA5", "#1F69FF", "#418FDE", "#DAE1E8", "#6366f1", "#f59e0b"];
@@ -32,7 +33,8 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [vacancy, setVacancy] = useState<any>(null);
-  const [role, setRole] = useState("");
+  const [canView, setCanView] = useState(true);
+  const [canPurge, setCanPurge] = useState(false);
   const [showPurge, setShowPurge] = useState(false);
   const [purgePassword, setPurgePassword] = useState("");
   const [purgeError, setPurgeError] = useState("");
@@ -40,7 +42,8 @@ export default function AnalyticsPage() {
   const [purgeToast, setPurgeToast] = useState("");
 
   useEffect(() => {
-    setRole(document.cookie.match(/cbc_role=([^;]+)/)?.[1] || "");
+    setCanView(hasPermission("view_analytics"));
+    setCanPurge(hasPermission("purge_data"));
   }, []);
 
   const reload = () => {
@@ -50,17 +53,27 @@ export default function AnalyticsPage() {
   };
 
   useEffect(() => {
+    if (!canView) { setLoading(false); return; }
     setLoading(true);
     api
       .get(`/analytics/summary`, { params: { period_days: period } })
       .then((r) => setData(r.data))
       .catch((e) => console.error(e))
       .finally(() => setLoading(false));
-  }, [period]);
+  }, [period, canView]);
 
   useEffect(() => {
+    if (!canView) return;
     api.get("/analytics/vacancy").then((r) => setVacancy(r.data)).catch(() => {});
-  }, []);
+  }, [canView]);
+
+  if (!canView) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "calc(100vh - 64px)", color: "#6b7280", fontSize: 14 }}>
+        У вас нет доступа к аналитике
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -70,7 +83,13 @@ export default function AnalyticsPage() {
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "calc(100vh - 64px)", color: "#6b7280", fontSize: 14 }}>
+        Не удалось загрузить аналитику
+      </div>
+    );
+  }
 
   const kpi = data?.kpi || {};
   const bookings_by_day = data?.bookings_by_day || [];
@@ -295,8 +314,8 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Admin: purge bookings */}
-      {role === "admin" && (
+      {/* Purge bookings */}
+      {canPurge && (
         <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 16, marginTop: 8 }}>
           <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 8 }}>Data Management</div>
           <button onClick={() => { setShowPurge(true); setPurgePassword(""); setPurgeError(""); }}
