@@ -42,6 +42,7 @@ export interface Building {
   management_start_date?: string | null;
   description?: string | null;
   photo_url?: string | null;
+  facade_image_url?: string | null;
   is_active?: boolean;
   created_at?: string | null;
 }
