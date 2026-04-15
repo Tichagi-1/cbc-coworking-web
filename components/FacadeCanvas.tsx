@@ -60,7 +60,7 @@ export default function FacadeCanvas({
   const zonesRef = useRef<FacadeZoneData[]>(zones);
   zonesRef.current = zones;
 
-  // Keep stable refs for callbacks so handlers never go stale
+  // Stable refs for callbacks
   const modeRef = useRef(mode);
   modeRef.current = mode;
   const onZoneClickRef = useRef(onZoneClick);
@@ -70,22 +70,25 @@ export default function FacadeCanvas({
   const floorsRef = useRef(floors);
   floorsRef.current = floors;
 
-  // Tooltip state
+  // Tooltip
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
 
-  // Edit mode state — use REFS for drawing flag (avoids stale closures)
+  // Drawing state — all refs to avoid stale closures
   const drawingModeRef = useRef(false);
-  const [drawingUI, setDrawingUI] = useState(false); // only for button styling
+  const [drawingUI, setDrawingUI] = useState(false);
+  const [pointCount, setPointCount] = useState(0);
+  const drawingPointsRef = useRef<{ x: number; y: number }[]>([]);
+  const drawingMarkersRef = useRef<any[]>([]); // dots + lines
+
+  // Edit zone panel
   const [editingZoneIdx, setEditingZoneIdx] = useState<number | null>(null);
+
+  // Assign modal
   const [assignModal, setAssignModal] = useState<{ points: { x: number; y: number }[] } | null>(null);
   const [assignFloorId, setAssignFloorId] = useState<number | null>(null);
   const [assignLabel, setAssignLabel] = useState("");
 
-  const isDrawingRef = useRef(false);
-  const drawStartRef = useRef<{ x: number; y: number } | null>(null);
-  const drawRectRef = useRef<any>(null);
-
-  // ── Responsive scale helper ────────────────────────────────────────
+  // ── Responsive scale ───────────────────────────────────────────────
   const applyResponsiveScale = useCallback(() => {
     const canvas = fabricCanvasRef.current;
     const wrapper = wrapperRef.current;
@@ -105,7 +108,6 @@ export default function FacadeCanvas({
     const fabric = fabricLibRef.current;
     if (!canvas || !fabric) return;
 
-    // Remove old zone objects
     const objs = canvas.getObjects().filter((o: any) => o._isFacadeZone || o._isFacadeLabel);
     objs.forEach((o: any) => canvas.remove(o));
 
@@ -135,10 +137,9 @@ export default function FacadeCanvas({
           _zoneIdx: idx,
         }
       );
-
       canvas.add(poly);
 
-      // Label text
+      // Label
       const cx = zone.points.reduce((s: number, p: any) => s + p.x, 0) / zone.points.length;
       const cy = zone.points.reduce((s: number, p: any) => s + p.y, 0) / zone.points.length;
       const labelStr = zone.label || "";
@@ -164,12 +165,26 @@ export default function FacadeCanvas({
     canvas.requestRenderAll();
   }, []);
 
-  // Re-render zones when data or mode changes
   useEffect(() => {
     renderZones();
   }, [zones, mode, renderZones]);
 
-  // ── Initialize canvas + attach ALL mouse handlers ONCE ─────────────
+  // ── Helper: clear temp drawing objects ──────────────────────────────
+  function clearDrawingState() {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+    // Remove preview line
+    const preview = canvas.getObjects().find((o: any) => o._isPreviewLine);
+    if (preview) canvas.remove(preview);
+    // Remove dots + segment lines
+    drawingMarkersRef.current.forEach((m: any) => canvas.remove(m));
+    drawingMarkersRef.current = [];
+    drawingPointsRef.current = [];
+    setPointCount(0);
+    canvas.requestRenderAll();
+  }
+
+  // ── Initialize canvas + all mouse handlers ─────────────────────────
   useEffect(() => {
     let disposed = false;
 
@@ -182,19 +197,18 @@ export default function FacadeCanvas({
       const canvas = new fabric.Canvas(el, {
         selection: false,
         preserveObjectStacking: true,
+        fireRightClick: false,
       });
       fabricCanvasRef.current = canvas;
 
-      // ── All mouse handlers (attached once, use refs for state) ──
-
+      // ── mouse:over (view tooltip highlight) ────────────────────
       canvas.on("mouse:over", (e: any) => {
         if (modeRef.current !== "view" || !e.target?._isFacadeZone) return;
-        const zone = zonesRef.current[e.target._zoneIdx];
-        if (!zone) return;
         e.target.set("opacity", 0.6);
         canvas.requestRenderAll();
       });
 
+      // ── mouse:out ──────────────────────────────────────────────
       canvas.on("mouse:out", (e: any) => {
         if (modeRef.current !== "view" || !e.target?._isFacadeZone) return;
         const zone = zonesRef.current[e.target._zoneIdx];
@@ -204,22 +218,30 @@ export default function FacadeCanvas({
         setTooltip(null);
       });
 
+      // ── mouse:move (tooltip + drawing preview line) ────────────
       canvas.on("mouse:move", (e: any) => {
-        // Drawing: resize temp rect
-        if (isDrawingRef.current && drawStartRef.current && drawRectRef.current) {
+        // Drawing preview line from last point to cursor
+        if (drawingModeRef.current && drawingPointsRef.current.length > 0) {
+          const prev = canvas.getObjects().find((o: any) => o._isPreviewLine);
+          if (prev) canvas.remove(prev);
+
           const ptr = canvas.getPointer(e.e);
-          const start = drawStartRef.current;
-          drawRectRef.current.set({
-            left: Math.min(start.x, ptr.x),
-            top: Math.min(start.y, ptr.y),
-            width: Math.abs(ptr.x - start.x),
-            height: Math.abs(ptr.y - start.y),
-          });
+          const last = drawingPointsRef.current[drawingPointsRef.current.length - 1];
+          const line = new fabric.Line([last.x, last.y, ptr.x, ptr.y], {
+            stroke: "#1F69FF",
+            strokeWidth: 1,
+            strokeDashArray: [4, 4],
+            selectable: false,
+            evented: false,
+            opacity: 0.6,
+            _isPreviewLine: true,
+          } as any);
+          canvas.add(line);
           canvas.requestRenderAll();
           return;
         }
 
-        // View mode tooltip
+        // View tooltip
         if (modeRef.current !== "view" || !e.target?._isFacadeZone) {
           setTooltip(null);
           return;
@@ -236,65 +258,51 @@ export default function FacadeCanvas({
         setTooltip({ x: ptr.x + 12, y: ptr.y - 10, text: lines });
       });
 
+      // ── mouse:down (place point or select zone) ────────────────
       canvas.on("mouse:down", (e: any) => {
-        // Drawing mode: start rect
         if (drawingModeRef.current && modeRef.current === "edit") {
+          // Place a polygon point
           const ptr = canvas.getPointer(e.e);
-          isDrawingRef.current = true;
-          drawStartRef.current = { x: ptr.x, y: ptr.y };
+          const point = { x: Math.round(ptr.x), y: Math.round(ptr.y) };
+          const points = drawingPointsRef.current;
+          points.push(point);
+          setPointCount(points.length);
 
-          const rect = new fabric.Rect({
-            left: ptr.x,
-            top: ptr.y,
-            width: 0,
-            height: 0,
-            fill: "rgba(31,105,255,0.3)",
-            stroke: "#1F69FF",
-            strokeWidth: 2,
+          // Draw dot
+          const dot = new fabric.Circle({
+            left: point.x - 4,
+            top: point.y - 4,
+            radius: 4,
+            fill: "#1F69FF",
+            stroke: "#FFFFFF",
+            strokeWidth: 1,
             selectable: false,
             evented: false,
-          });
-          drawRectRef.current = rect;
-          canvas.add(rect);
-        }
-      });
+            _isDrawingMarker: true,
+          } as any);
+          canvas.add(dot);
+          drawingMarkersRef.current.push(dot);
 
-      canvas.on("mouse:up", (e: any) => {
-        // Drawing mode: finish rect
-        if (isDrawingRef.current && drawRectRef.current) {
-          isDrawingRef.current = false;
-          const rect = drawRectRef.current;
-          const w = rect.width || 0;
-          const h = rect.height || 0;
-          canvas.remove(rect);
-          drawRectRef.current = null;
-          drawStartRef.current = null;
+          // Draw line from previous point
+          if (points.length > 1) {
+            const prev = points[points.length - 2];
+            const seg = new fabric.Line([prev.x, prev.y, point.x, point.y], {
+              stroke: "#1F69FF",
+              strokeWidth: 2,
+              strokeDashArray: [5, 3],
+              selectable: false,
+              evented: false,
+              _isDrawingMarker: true,
+            } as any);
+            canvas.add(seg);
+            drawingMarkersRef.current.push(seg);
+          }
 
-          if (w < 20 || h < 20) return; // too small, ignore
-
-          const left = rect.left || 0;
-          const top = rect.top || 0;
-          const points = [
-            { x: Math.round(left), y: Math.round(top) },
-            { x: Math.round(left + w), y: Math.round(top) },
-            { x: Math.round(left + w), y: Math.round(top + h) },
-            { x: Math.round(left), y: Math.round(top + h) },
-          ];
-
-          // Exit drawing mode
-          drawingModeRef.current = false;
-          setDrawingUI(false);
-          canvas.defaultCursor = "default";
-
-          // Open assign modal
-          const fl = floorsRef.current;
-          setAssignModal({ points });
-          setAssignFloorId(fl[0]?.id ?? null);
-          setAssignLabel(fl[0] ? `${fl[0].number}F` : "");
+          canvas.requestRenderAll();
           return;
         }
 
-        // Click on zone (non-drawing)
+        // Non-drawing: click on zone
         if (e.target?._isFacadeZone) {
           const zone = zonesRef.current[e.target._zoneIdx];
           if (!zone) return;
@@ -306,6 +314,50 @@ export default function FacadeCanvas({
         }
       });
 
+      // ── mouse:dblclick (finish polygon) ────────────────────────
+      canvas.on("mouse:dblclick", () => {
+        if (!drawingModeRef.current || modeRef.current !== "edit") return;
+
+        let points = [...drawingPointsRef.current];
+
+        // Double-click fires two mouse:down first, adding a duplicate point.
+        // Remove it if last two points are within 10px of each other.
+        if (points.length >= 2) {
+          const a = points[points.length - 1];
+          const b = points[points.length - 2];
+          if (Math.hypot(a.x - b.x, a.y - b.y) < 10) {
+            points.pop();
+          }
+        }
+
+        if (points.length < 3) {
+          // Not enough points — cancel
+          clearDrawingState();
+          return;
+        }
+
+        // Clean up temp markers + preview line
+        const preview = canvas.getObjects().find((o: any) => o._isPreviewLine);
+        if (preview) canvas.remove(preview);
+        drawingMarkersRef.current.forEach((m: any) => canvas.remove(m));
+        drawingMarkersRef.current = [];
+        drawingPointsRef.current = [];
+        setPointCount(0);
+        canvas.requestRenderAll();
+
+        // Exit drawing mode
+        drawingModeRef.current = false;
+        setDrawingUI(false);
+        canvas.defaultCursor = "default";
+
+        // Open assign modal
+        const fl = floorsRef.current;
+        setAssignModal({ points });
+        setAssignFloorId(fl[0]?.id ?? null);
+        setAssignLabel(fl[0] ? `${fl[0].number}F` : "");
+      });
+
+      // ── object:modified (drag existing zones) ──────────────────
       canvas.on("object:modified", (e: any) => {
         const obj = e.target;
         if (!obj?._isFacadeZone || modeRef.current !== "edit") return;
@@ -327,7 +379,7 @@ export default function FacadeCanvas({
         onZonesChangeRef.current?.(updated);
       });
 
-      // Load facade image
+      // ── Load facade image ──────────────────────────────────────
       if (facadeImageUrl) {
         const url = facadeImageUrl.startsWith("http")
           ? facadeImageUrl
@@ -335,9 +387,7 @@ export default function FacadeCanvas({
 
         fabric.Image.fromURL(url, (img: any) => {
           if (disposed || !img) return;
-          const w = img.width || 800;
-          const h = img.height || 600;
-          baseSizeRef.current = { width: w, height: h };
+          baseSizeRef.current = { width: img.width || 800, height: img.height || 600 };
           canvas.setBackgroundImage(img, () => {
             applyResponsiveScale();
             renderZones();
@@ -363,34 +413,38 @@ export default function FacadeCanvas({
     return () => window.removeEventListener("resize", handler);
   }, [applyResponsiveScale]);
 
-  // ── Start / stop drawing mode ──────────────────────────────────────
-  function toggleDrawingMode() {
+  // ── Start / stop / cancel drawing mode ─────────────────────────────
+  function startDrawingMode() {
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
-
-    const next = !drawingModeRef.current;
-    drawingModeRef.current = next;
-    setDrawingUI(next);
+    drawingModeRef.current = true;
+    drawingPointsRef.current = [];
+    drawingMarkersRef.current = [];
+    setDrawingUI(true);
+    setPointCount(0);
     setEditingZoneIdx(null);
+    canvas.selection = false;
+    canvas.defaultCursor = "crosshair";
+    canvas.forEachObject((obj: any) => {
+      obj.selectable = false;
+      obj.evented = false;
+    });
+    canvas.requestRenderAll();
+  }
 
-    if (next) {
-      // Disable selection on all objects, change cursor
-      canvas.selection = false;
-      canvas.defaultCursor = "crosshair";
-      canvas.forEachObject((obj: any) => {
-        obj.selectable = false;
-        obj.evented = false;
-      });
-    } else {
-      // Re-enable
-      canvas.defaultCursor = "default";
-      canvas.forEachObject((obj: any) => {
-        if (obj._isFacadeZone) {
-          obj.selectable = true;
-          obj.evented = true;
-        }
-      });
-    }
+  function cancelDrawingMode() {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+    clearDrawingState();
+    drawingModeRef.current = false;
+    setDrawingUI(false);
+    canvas.defaultCursor = "default";
+    canvas.forEachObject((obj: any) => {
+      if (obj._isFacadeZone) {
+        obj.selectable = true;
+        obj.evented = true;
+      }
+    });
     canvas.requestRenderAll();
   }
 
@@ -405,14 +459,12 @@ export default function FacadeCanvas({
       points: assignModal.points,
       label: assignLabel || `${floor?.number ?? ""}F`,
     };
-    const updated = [...zonesRef.current, newZone];
-    onZonesChange?.(updated);
+    onZonesChange?.([...zonesRef.current, newZone]);
     setAssignModal(null);
   }
 
   function handleDeleteZone(idx: number) {
-    const updated = zonesRef.current.filter((_, i) => i !== idx);
-    onZonesChange?.(updated);
+    onZonesChange?.(zonesRef.current.filter((_, i) => i !== idx));
     setEditingZoneIdx(null);
   }
 
@@ -442,7 +494,7 @@ export default function FacadeCanvas({
         <canvas ref={canvasElRef} />
       </div>
 
-      {/* Tooltip — pointer-events: none is critical */}
+      {/* Tooltip */}
       {tooltip && (
         <div
           style={{
@@ -466,22 +518,49 @@ export default function FacadeCanvas({
 
       {/* Edit mode toolbar */}
       {mode === "edit" && (
-        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button
-            onClick={toggleDrawingMode}
-            style={{
-              padding: "6px 14px",
-              border: drawingUI ? "2px solid #1F69FF" : "1px solid #d1d5db",
-              borderRadius: 6,
-              background: drawingUI ? "#eff6ff" : "white",
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: "pointer",
-              color: drawingUI ? "#1F69FF" : "#374151",
-            }}
-          >
-            {drawingUI ? "Drawing... (drag on facade)" : "+ Add Zone"}
-          </button>
+        <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
+          {!drawingUI ? (
+            <button
+              onClick={startDrawingMode}
+              style={{
+                padding: "6px 14px",
+                border: "1px solid #d1d5db",
+                borderRadius: 6,
+                background: "white",
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: "pointer",
+                color: "#374151",
+              }}
+            >
+              + Add Zone
+            </button>
+          ) : (
+            <>
+              <span style={{ fontSize: 13, color: "#1F69FF", fontWeight: 500 }}>
+                Click to place points, double-click to finish
+              </span>
+              {pointCount > 0 && (
+                <span style={{ fontSize: 12, color: "#6b7280", background: "#f3f4f6", padding: "2px 8px", borderRadius: 4 }}>
+                  {pointCount} point{pointCount !== 1 ? "s" : ""}
+                </span>
+              )}
+              <button
+                onClick={cancelDrawingMode}
+                style={{
+                  padding: "4px 12px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 6,
+                  background: "white",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  color: "#6b7280",
+                }}
+              >
+                Cancel
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -533,7 +612,7 @@ export default function FacadeCanvas({
         </div>
       )}
 
-      {/* Assign floor modal (after drawing) */}
+      {/* Assign floor modal */}
       {assignModal && (
         <div
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
