@@ -2,9 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { api, ROLE_COOKIE } from "@/lib/api";
-import type { Building, PropertySummary, FloorSummary, PropertyType, PropertyClass, Resource } from "@/lib/types";
+import type { Building, Floor, PropertySummary, FloorSummary, PropertyType, PropertyClass, Resource } from "@/lib/types";
+import type { FacadeZoneData } from "@/components/FacadeCanvas";
 import Cookies from "js-cookie";
+
+const FacadeCanvas = dynamic(() => import("@/components/FacadeCanvas"), {
+  ssr: false,
+  loading: () => <div style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>Loading canvas...</div>,
+});
 
 const TYPE_LABEL: Record<string, string> = {
   office: "Business Center",
@@ -67,6 +74,16 @@ export default function PropertyDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
+  // Facade state
+  const [facadeZones, setFacadeZones] = useState<FacadeZoneData[]>([]);
+  const [facadeImageUrl, setFacadeImageUrl] = useState<string | null>(null);
+  const [facadeMode, setFacadeMode] = useState<"view" | "edit">("view");
+  const [facadeEditZones, setFacadeEditZones] = useState<FacadeZoneData[]>([]);
+  const [savingFacade, setSavingFacade] = useState(false);
+  const [uploadingFacade, setUploadingFacade] = useState(false);
+  const [allFloors, setAllFloors] = useState<Floor[]>([]);
+  const facadeInputRef = useRef<HTMLInputElement>(null);
+
   function reload() {
     setLoading(true);
     api
@@ -76,8 +93,21 @@ export default function PropertyDetailPage() {
       .finally(() => setLoading(false));
   }
 
+  function loadFacade() {
+    api.get<{ facade_image_url: string | null; zones: FacadeZoneData[] }>(`/properties/${propertyId}/facade-zones`)
+      .then((r) => {
+        setFacadeImageUrl(r.data.facade_image_url);
+        setFacadeZones(r.data.zones);
+      })
+      .catch(() => {});
+    api.get<Floor[]>(`/buildings/${propertyId}/floors`)
+      .then((r) => setAllFloors(r.data))
+      .catch(() => {});
+  }
+
   useEffect(() => {
     reload();
+    loadFacade();
   }, [propertyId]);
 
   async function toggleFloor(floorId: number) {
@@ -117,6 +147,37 @@ export default function PropertyDetailPage() {
       router.push("/dashboard/properties");
     } catch { /* ignore */ }
     setDeleting(false);
+  }
+
+  async function handleFacadeUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingFacade(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await api.post<{ facade_image_url: string }>(`/properties/${propertyId}/facade`, fd);
+      setFacadeImageUrl(res.data.facade_image_url);
+    } catch { /* ignore */ }
+    setUploadingFacade(false);
+    if (facadeInputRef.current) facadeInputRef.current.value = "";
+  }
+
+  async function handleSaveFacadeZones() {
+    setSavingFacade(true);
+    try {
+      const body = {
+        zones: facadeEditZones.map((z) => ({
+          floor_id: z.floor_id,
+          points: z.points,
+          label: z.label || null,
+        })),
+      };
+      await api.put(`/properties/${propertyId}/facade-zones`, body);
+      loadFacade();
+      setFacadeMode("view");
+    } catch { /* ignore */ }
+    setSavingFacade(false);
   }
 
   if (loading || !summary) {
@@ -213,7 +274,86 @@ export default function PropertyDetailPage() {
         </div>
       </div>
 
-      {/* B) Key Metrics */}
+      {/* B) Facade Canvas */}
+      <div style={{ background: "white", borderRadius: 12, border: "1px solid #e5e7eb", padding: 20, marginBottom: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "#0A1730", margin: 0 }}>Facade Map</h2>
+          {role === "admin" && facadeImageUrl && (
+            <div style={{ display: "flex", gap: 8 }}>
+              {facadeMode === "view" ? (
+                <button
+                  onClick={() => { setFacadeMode("edit"); setFacadeEditZones([...facadeZones]); }}
+                  style={{ padding: "5px 12px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", fontSize: 12, cursor: "pointer" }}
+                >
+                  Edit Zones
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={handleSaveFacadeZones}
+                    disabled={savingFacade}
+                    style={{ padding: "5px 12px", background: savingFacade ? "#93c5fd" : "#1F69FF", color: "white", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    {savingFacade ? "Saving..." : "Save Zones"}
+                  </button>
+                  <button
+                    onClick={() => { setFacadeMode("view"); setFacadeEditZones([]); }}
+                    style={{ padding: "5px 12px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", fontSize: 12, cursor: "pointer" }}
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {facadeImageUrl ? (
+          <>
+            <FacadeCanvas
+              facadeImageUrl={facadeImageUrl}
+              zones={facadeMode === "edit" ? facadeEditZones : facadeZones}
+              mode={facadeMode}
+              floors={allFloors}
+              onZoneClick={(zone) => router.push(`/dashboard/map?floor=${zone.floor_id}`)}
+              onZonesChange={(zones) => setFacadeEditZones(zones)}
+            />
+            {role === "admin" && (
+              <div style={{ marginTop: 8 }}>
+                <button
+                  onClick={() => facadeInputRef.current?.click()}
+                  disabled={uploadingFacade}
+                  style={{ padding: "4px 10px", border: "1px solid #d1d5db", borderRadius: 4, background: "white", fontSize: 11, cursor: "pointer", color: "#6b7280" }}
+                >
+                  {uploadingFacade ? "Uploading..." : "Replace facade photo"}
+                </button>
+                <input ref={facadeInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFacadeUpload} />
+              </div>
+            )}
+          </>
+        ) : (
+          <div
+            onClick={() => role === "admin" && facadeInputRef.current?.click()}
+            style={{
+              border: "2px dashed #d1d5db",
+              borderRadius: 8,
+              padding: 40,
+              textAlign: "center",
+              cursor: role === "admin" ? "pointer" : "default",
+              color: "#9ca3af",
+            }}
+          >
+            <div style={{ fontSize: 32, marginBottom: 8 }}>🏢</div>
+            <div style={{ fontSize: 14 }}>
+              {role === "admin" ? "Upload a facade photo to enable zone mapping" : "No facade photo uploaded"}
+            </div>
+            {uploadingFacade && <div style={{ fontSize: 13, marginTop: 8, color: "#1F69FF" }}>Uploading...</div>}
+            <input ref={facadeInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFacadeUpload} />
+          </div>
+        )}
+      </div>
+
+      {/* C) Key Metrics */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
         <MetricCard label="GLA" value={t.gla_m2 ? `${t.gla_m2.toLocaleString()} m2` : "---"} />
         <MetricCard label="Occupancy" value={`${occupancyPct}%`} color={occupancyPct >= 70 ? "#16a34a" : occupancyPct >= 40 ? "#eab308" : "#ef4444"} />
