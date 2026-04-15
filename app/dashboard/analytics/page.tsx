@@ -100,8 +100,8 @@ export default function AnalyticsPage() {
 
       {/* KPI Row */}
       <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-        <KPICard label="Occupancy Rate" value={`${kpi.occupancy_rate ?? 0}%`} sub="of all resources"
-          color={(kpi.occupancy_rate ?? 0) > 70 ? "#16a34a" : (kpi.occupancy_rate ?? 0) > 40 ? "#d97706" : "#dc2626"} />
+        <KPICard label="Occupancy Rate" value={kpi.occupancy_rate != null ? `${kpi.occupancy_rate}%` : "—"} sub="by area (GLA)"
+          color={kpi.occupancy_rate != null ? (kpi.occupancy_rate > 70 ? "#16a34a" : kpi.occupancy_rate > 40 ? "#d97706" : "#dc2626") : "#9ca3af"} />
         <KPICard label="Active Tenants" value={kpi.active_tenants ?? 0} sub="companies" />
         <KPICard label="Bookings Today" value={kpi.bookings_today ?? 0} sub="sessions" />
         <KPICard label="Coins Spent" value={(kpi.coins_spent_month ?? 0).toLocaleString()} sub="this month" color={ACCENT} />

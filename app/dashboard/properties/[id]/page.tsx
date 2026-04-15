@@ -191,7 +191,8 @@ export default function PropertyDetailPage() {
   const typeLabel = TYPE_LABEL[p.property_type || ""] || p.property_type || "";
   const cls = p.property_class || p.building_class || "";
   const clsColor = CLASS_COLOR[cls] || "#9ca3af";
-  const occupancyPct = t.total_resources > 0 ? Math.round((t.occupied_resources / t.total_resources) * 100) : 0;
+  // Use the backend's area/seats-based vacancy rate, NOT resource count
+  const occupancyPct = t.vacancy_rate_m2 != null ? Math.round(100 - t.vacancy_rate_m2) : null;
 
   return (
     <div style={{ padding: 24, maxWidth: 1000, margin: "0 auto" }}>
@@ -356,7 +357,11 @@ export default function PropertyDetailPage() {
       {/* C) Key Metrics */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
         <MetricCard label="GLA" value={t.gla_m2 ? `${t.gla_m2.toLocaleString()} m2` : "---"} />
-        <MetricCard label="Occupancy" value={`${occupancyPct}%`} color={occupancyPct >= 70 ? "#16a34a" : occupancyPct >= 40 ? "#eab308" : "#ef4444"} />
+        <MetricCard
+          label="Occupancy"
+          value={occupancyPct != null ? `${occupancyPct}%` : "—"}
+          color={occupancyPct != null ? (occupancyPct >= 70 ? "#16a34a" : occupancyPct >= 40 ? "#eab308" : "#ef4444") : "#9ca3af"}
+        />
         <MetricCard label="Floors" value={String(t.total_floors)} />
         <MetricCard label="Tenants" value={String(t.total_tenants)} />
       </div>
@@ -457,9 +462,10 @@ function FloorRow({
   loadingResources: boolean;
   onNavigate: () => void;
 }) {
-  const hasData = floor.total_resources > 0;
-  const occupancy = hasData ? Math.round(((floor.total_resources - floor.vacant_resources) / floor.total_resources) * 100) : 0;
-  const barColor = occupancy >= 70 ? "#22c55e" : occupancy >= 40 ? "#eab308" : "#ef4444";
+  // Use backend's area/seats-based vacancy_rate (never resource count)
+  const isConfigured = floor.vacancy_rate != null;
+  const occupancy = isConfigured ? Math.round(100 - floor.vacancy_rate!) : 0;
+  const barColor = !isConfigured ? "#9ca3af" : occupancy >= 70 ? "#22c55e" : occupancy >= 40 ? "#eab308" : "#ef4444";
   const isSeats = floor.vacancy_metric === "seats";
   const total = isSeats ? (floor.total_seats ?? 0) : (floor.total_area_m2 ?? 0);
   const unit = isSeats ? "seats" : "m2";
@@ -502,7 +508,7 @@ function FloorRow({
 
         {/* Progress bar */}
         <div>
-          {hasData ? (
+          {isConfigured ? (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ flex: 1, height: 8, background: "#f3f4f6", borderRadius: 4, overflow: "hidden" }}>
                 <div style={{ width: `${occupancy}%`, height: "100%", background: barColor, borderRadius: 4, transition: "width 0.3s" }} />
@@ -510,13 +516,13 @@ function FloorRow({
               <span style={{ fontSize: 13, fontWeight: 600, color: barColor, minWidth: 36, textAlign: "right" }}>{occupancy}%</span>
             </div>
           ) : (
-            <span style={{ fontSize: 12, color: "#d1d5db" }}>Configure parameters</span>
+            <span style={{ fontSize: 12, color: "#d1d5db" }}>Configure floor GLA</span>
           )}
         </div>
 
         {/* Capacity label */}
         <div style={{ fontSize: 13, color: "#6b7280", textAlign: "right" }}>
-          {hasData && total > 0 ? `${floor.occupied_resources}/${floor.total_resources} res` : ""}
+          {isConfigured ? `${floor.occupied_resources}/${floor.total_resources} res` : ""}
           {total > 0 && <span style={{ marginLeft: 6, color: "#9ca3af" }}>({total} {unit})</span>}
         </div>
 

@@ -57,7 +57,7 @@ export interface FloorSummary {
   total_resources: number;
   occupied_resources: number;
   vacant_resources: number;
-  vacancy_rate: number;
+  vacancy_rate: number | null;
 }
 
 export interface PropertyTotals {
@@ -67,7 +67,7 @@ export interface PropertyTotals {
   vacant_resources: number;
   gla_m2: number | null;
   occupied_m2: number;
-  vacancy_rate_m2: number;
+  vacancy_rate_m2: number | null;
   total_tenants: number;
 }
 
