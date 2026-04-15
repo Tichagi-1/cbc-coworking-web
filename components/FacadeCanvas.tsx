@@ -33,16 +33,19 @@ interface Props {
   onZonesChange?: (zones: FacadeZoneData[]) => void;
 }
 
-function getOccColor(rate: number | undefined): string {
-  if (rate == null) return "#9CA3AF";
-  if (rate >= 70) return "#22C55E";
-  if (rate >= 40) return "#EAB308";
-  return "#EF4444";
+function getOccFill(rate: number | null | undefined): string {
+  if (rate == null) return "rgba(156,163,175,0.15)";
+  if (rate >= 70) return "rgba(34,197,94,0.25)";
+  if (rate >= 40) return "rgba(234,179,8,0.25)";
+  return "rgba(239,68,68,0.25)";
 }
 
-function getOccOpacity(rate: number | undefined): number {
-  return rate != null ? 0.4 : 0.3;
-}
+const HOVER_FILL_BOOST: Record<string, string> = {
+  "rgba(156,163,175,0.15)": "rgba(156,163,175,0.3)",
+  "rgba(34,197,94,0.25)": "rgba(34,197,94,0.4)",
+  "rgba(234,179,8,0.25)": "rgba(234,179,8,0.4)",
+  "rgba(239,68,68,0.25)": "rgba(239,68,68,0.4)",
+};
 
 export default function FacadeCanvas({
   facadeImageUrl,
@@ -108,7 +111,7 @@ export default function FacadeCanvas({
     const fabric = fabricLibRef.current;
     if (!canvas || !fabric) return;
 
-    const objs = canvas.getObjects().filter((o: any) => o._isFacadeZone || o._isFacadeLabel);
+    const objs = canvas.getObjects().filter((o: any) => o._isFacadeZone);
     objs.forEach((o: any) => canvas.remove(o));
 
     const curMode = modeRef.current;
@@ -118,16 +121,14 @@ export default function FacadeCanvas({
       if (!zone.points || zone.points.length < 3) return;
 
       const occRate = zone.vacancy?.occupancy_rate;
-      const fillColor = getOccColor(occRate);
-      const fillOpacity = getOccOpacity(occRate);
+      const fill = getOccFill(occRate);
 
       const poly = new fabric.Polygon(
         zone.points.map((p: any) => ({ x: p.x, y: p.y })),
         {
-          fill: fillColor,
-          opacity: fillOpacity,
-          stroke: "white",
-          strokeWidth: 2,
+          fill,
+          stroke: "rgba(255,255,255,0.6)",
+          strokeWidth: 1,
           selectable: curMode === "edit" && !isDrawing,
           evented: !isDrawing,
           hasControls: curMode === "edit" && !isDrawing,
@@ -135,31 +136,10 @@ export default function FacadeCanvas({
           lockRotation: true,
           _isFacadeZone: true,
           _zoneIdx: idx,
+          _baseFill: fill,
         }
       );
       canvas.add(poly);
-
-      // Label
-      const cx = zone.points.reduce((s: number, p: any) => s + p.x, 0) / zone.points.length;
-      const cy = zone.points.reduce((s: number, p: any) => s + p.y, 0) / zone.points.length;
-      const labelStr = zone.label || "";
-      const pctStr = occRate != null ? ` · ${Math.round(occRate)}%` : "";
-
-      const text = new fabric.Text(labelStr + pctStr, {
-        left: cx,
-        top: cy,
-        fontSize: 14,
-        fontWeight: "bold",
-        fontFamily: "sans-serif",
-        fill: "white",
-        originX: "center",
-        originY: "center",
-        selectable: false,
-        evented: false,
-        shadow: new fabric.Shadow({ color: "rgba(0,0,0,0.7)", blur: 4, offsetX: 1, offsetY: 1 }),
-        _isFacadeLabel: true,
-      });
-      canvas.add(text);
     });
 
     canvas.requestRenderAll();
@@ -204,16 +184,15 @@ export default function FacadeCanvas({
       // ── mouse:over (view tooltip highlight) ────────────────────
       canvas.on("mouse:over", (e: any) => {
         if (modeRef.current !== "view" || !e.target?._isFacadeZone) return;
-        e.target.set("opacity", 0.6);
+        const baseFill = e.target._baseFill || "rgba(156,163,175,0.15)";
+        e.target.set("fill", HOVER_FILL_BOOST[baseFill] || baseFill);
         canvas.requestRenderAll();
       });
 
       // ── mouse:out ──────────────────────────────────────────────
       canvas.on("mouse:out", (e: any) => {
         if (modeRef.current !== "view" || !e.target?._isFacadeZone) return;
-        const zone = zonesRef.current[e.target._zoneIdx];
-        if (!zone) return;
-        e.target.set("opacity", getOccOpacity(zone.vacancy?.occupancy_rate));
+        e.target.set("fill", e.target._baseFill || "rgba(156,163,175,0.15)");
         canvas.requestRenderAll();
         setTooltip(null);
       });
