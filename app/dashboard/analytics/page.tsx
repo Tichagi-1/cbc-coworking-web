@@ -32,6 +32,22 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [vacancy, setVacancy] = useState<any>(null);
+  const [role, setRole] = useState("");
+  const [showPurge, setShowPurge] = useState(false);
+  const [purgePassword, setPurgePassword] = useState("");
+  const [purgeError, setPurgeError] = useState("");
+  const [purging, setPurging] = useState(false);
+  const [purgeToast, setPurgeToast] = useState("");
+
+  useEffect(() => {
+    setRole(document.cookie.match(/cbc_role=([^;]+)/)?.[1] || "");
+  }, []);
+
+  const reload = () => {
+    setLoading(true);
+    api.get("/analytics/summary", { params: { period_days: period } }).then((r) => setData(r.data)).catch(() => {}).finally(() => setLoading(false));
+    api.get("/analytics/vacancy").then((r) => setVacancy(r.data)).catch(() => {});
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -278,6 +294,75 @@ export default function AnalyticsPage() {
           </div>
         </div>
       </div>
+
+      {/* Admin: purge bookings */}
+      {role === "admin" && (
+        <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 16, marginTop: 8 }}>
+          <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 8 }}>Data Management</div>
+          <button onClick={() => { setShowPurge(true); setPurgePassword(""); setPurgeError(""); }}
+            style={{ padding: "6px 14px", border: "1px solid #fca5a5", borderRadius: 6, background: "white", color: "#dc2626", fontSize: 13, cursor: "pointer" }}>
+            Purge all bookings
+          </button>
+          {purgeToast && (
+            <span style={{ marginLeft: 12, fontSize: 13, color: "#16a34a" }}>{purgeToast}</span>
+          )}
+        </div>
+      )}
+
+      {/* Purge modal */}
+      {showPurge && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)" }}
+          onMouseDown={() => setShowPurge(false)}>
+          <div style={{ background: "white", borderRadius: 12, padding: 28, width: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
+            onMouseDown={(e) => e.stopPropagation()}>
+            <div style={{ textAlign: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: 40 }}>⚠️</div>
+              <h3 style={{ margin: "8px 0 0", fontSize: 17, fontWeight: 600, color: "#dc2626" }}>Purge Booking Data</h3>
+            </div>
+            <p style={{ fontSize: 13, color: "#374151", lineHeight: 1.6, marginBottom: 16 }}>
+              This will delete <strong>ALL bookings</strong> and reset all tenant coin balances to 0. This action is irreversible.
+            </p>
+            <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+              Enter your password to confirm
+              <input type="password" value={purgePassword} onChange={(e) => { setPurgePassword(e.target.value); setPurgeError(""); }}
+                placeholder="Password"
+                style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: `1px solid ${purgeError ? "#fca5a5" : "#d1d5db"}`, borderRadius: 6, fontSize: 14, boxSizing: "border-box" }} />
+            </label>
+            {purgeError && <div style={{ fontSize: 12, color: "#dc2626", marginBottom: 8 }}>{purgeError}</div>}
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setShowPurge(false)}
+                style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>
+                Cancel
+              </button>
+              <button
+                disabled={purging || !purgePassword}
+                onClick={async () => {
+                  setPurging(true);
+                  setPurgeError("");
+                  try {
+                    const res = await api.post<{ deleted_bookings: number }>("/bookings/purge", { password: purgePassword });
+                    setShowPurge(false);
+                    setPurgeToast(`Deleted ${res.data.deleted_bookings} bookings. Coin balances reset.`);
+                    setTimeout(() => setPurgeToast(""), 5000);
+                    reload();
+                  } catch (e: unknown) {
+                    const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+                    if (detail === "Invalid password") {
+                      setPurgeError("Wrong password");
+                    } else {
+                      setPurgeError(detail || "Failed");
+                    }
+                  } finally {
+                    setPurging(false);
+                  }
+                }}
+                style={{ padding: "8px 16px", background: "#dc2626", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, opacity: purging || !purgePassword ? 0.6 : 1 }}>
+                {purging ? "Deleting..." : "Confirm Purge"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
