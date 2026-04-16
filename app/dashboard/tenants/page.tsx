@@ -70,8 +70,10 @@ export default function TenantsPage() {
       setDeleteTarget(null);
       setToast("Tenant deleted");
       setTimeout(() => setToast(null), 3000);
-    } catch (e) {
-      setError((e as Error)?.message || "Failed to delete tenant");
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        || (e as Error)?.message || "Failed to delete tenant";
+      setError(detail);
     }
     setDeletingTenant(false);
   }
