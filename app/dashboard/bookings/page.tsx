@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
 import type { Resource, Booking } from "@/lib/types";
 
 const HOUR_HEIGHT = 60;
@@ -332,7 +333,7 @@ export default function BookingsPage() {
           </div>
         </div>
 
-        {(role === "admin" || role === "manager") && tenants.length > 0 && (
+        {hasPermission("create_booking") && tenants.length > 0 && (
           <div style={{ marginTop: 12 }}>
             <label
               style={{

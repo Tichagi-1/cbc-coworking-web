@@ -115,8 +115,8 @@ export default function TenantsPage() {
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Units</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Plan</th>
                 <th className="text-right px-4 py-3 font-semibold text-gray-600">Monthly Rate</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">Монет/мес</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">Coin Balance</th>
+                <th className="text-right px-4 py-3 font-semibold text-gray-600" title="Автоматически начисляется 1-го числа каждого месяца. Рассчитывается из стоимости юнитов × % плана.">Начисление/мес</th>
+                <th className="text-right px-4 py-3 font-semibold text-gray-600" title="Остаток монет. Списывается при бронированиях. Admin может корректировать вручную.">Текущий баланс</th>
                 <th className="text-center px-4 py-3 font-semibold text-gray-600">Resident</th>
                 {isAdmin && (
                   <th className="text-center px-4 py-3 font-semibold text-gray-600">Actions</th>

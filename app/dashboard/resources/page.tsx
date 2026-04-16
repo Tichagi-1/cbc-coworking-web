@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Cookies from "js-cookie";
 
 import { api, ROLE_COOKIE } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
 import { useProperty } from "@/lib/PropertyContext";
 import EditResourceModal from "@/components/EditResourceModal";
 import type {
@@ -77,7 +78,7 @@ export default function ResourcesPage() {
   useEffect(() => {
     setRole(Cookies.get(ROLE_COOKIE) as UserRole | undefined);
   }, []);
-  const isAdmin = role === "admin" || role === "manager";
+  const isAdmin = hasPermission("manage_resources");
 
   const [resources, setResources] = useState<Resource[]>([]);
   const [floors, setFloors] = useState<Floor[]>([]);

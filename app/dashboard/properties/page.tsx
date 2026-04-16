@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ROLE_COOKIE } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
 import type { Building, PropertyType, PropertyClass } from "@/lib/types";
 import Cookies from "js-cookie";
 
@@ -148,7 +149,7 @@ export default function PropertiesPage() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: "#0A1730" }}>Properties</h1>
-        {role === "admin" && (
+        {hasPermission("manage_properties") && (
           <button
             onClick={() => { setForm({ ...EMPTY_FORM }); setShowCreate(true); setError(""); }}
             style={{
@@ -180,7 +181,7 @@ export default function PropertiesPage() {
             <PropertyCard
               key={p.id}
               property={p}
-              isAdmin={role === "admin"}
+              isAdmin={hasPermission("manage_properties")}
               onClick={() => router.push(`/dashboard/properties/${p.id}`)}
               onDelete={() => setDeleteTarget(p)}
             />

@@ -13,6 +13,7 @@ import dayjs from "dayjs";
 import Cookies from "js-cookie";
 
 import { api, buildAssetUrl, ROLE_COOKIE } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
 import { useProperty } from "@/lib/PropertyContext";
 import type {
   Building,
@@ -43,7 +44,7 @@ export default function MapPage() {
   useEffect(() => {
     setRole(Cookies.get(ROLE_COOKIE) as UserRole | undefined);
   }, []);
-  const isAdmin = role === "admin" || role === "manager";
+  const isAdmin = hasPermission("edit_floor_map");
 
   const [floors, setFloors] = useState<Floor[]>([]);
   const [floorId, setFloorId] = useState<number | null>(null);

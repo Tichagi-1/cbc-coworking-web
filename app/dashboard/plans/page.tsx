@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
 import { useProperty } from "@/lib/PropertyContext";
 import type { BillingMode, Plan } from "@/lib/types";
 
@@ -32,6 +33,7 @@ export default function PlansPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const canManage = hasPermission("manage_plans");
 
   // Form state
   const [name, setName] = useState("");
@@ -184,12 +186,14 @@ export default function PlansPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT: plan list */}
         <div className="lg:col-span-1 space-y-3">
-          <button
-            onClick={startNew}
-            className="w-full px-3 py-2 text-sm font-medium text-white bg-cbc-blue hover:bg-cbc-bright-blue rounded-md"
-          >
-            + New Plan
-          </button>
+          {canManage && (
+            <button
+              onClick={startNew}
+              className="w-full px-3 py-2 text-sm font-medium text-white bg-cbc-blue hover:bg-cbc-bright-blue rounded-md"
+            >
+              + New Plan
+            </button>
+          )}
 
           {plans.length === 0 && (
             <div className="text-sm text-gray-500 p-4 border border-dashed border-gray-300 rounded-md">
@@ -202,7 +206,7 @@ export default function PlansPage() {
             return (
               <button
                 key={p.id}
-                onClick={() => selectPlan(p)}
+                onClick={() => canManage && selectPlan(p)}
                 className={`block w-full text-left p-4 rounded-lg border transition ${
                   active
                     ? "border-cbc-blue bg-cbc-blue/5 ring-1 ring-cbc-blue"

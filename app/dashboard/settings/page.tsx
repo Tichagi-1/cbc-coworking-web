@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
 
 const TABS = ["General", "Branding", "Operations", "Roles", "Salto", "Users"] as const;
 type Tab = (typeof TABS)[number];
@@ -50,7 +51,7 @@ export default function SettingsPage() {
     api.get<Record<string, Record<string, boolean>>>("/permissions").then((r) => setPermissions(r.data)).catch(() => {});
   }, []);
 
-  const isAdmin = role === "admin";
+  const isAdmin = hasPermission("manage_settings");
 
   async function saveSetting(key: string, value: string) {
     setSaving(true);
@@ -241,6 +242,8 @@ export default function SettingsPage() {
               ))}
             </select>
           </label>
+
+          <MonthlyResetButton setToast={setToast} />
         </div>
       )}
 
@@ -713,6 +716,53 @@ function SaltoTab({
           border: `1px solid ${testError ? "#fca5a5" : "#a7f3d0"}`,
         }}>
           {testResult}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Monthly Coin Reset Button ────────────────────────────────────────────
+
+function MonthlyResetButton({ setToast }: { setToast: (t: string | null) => void }) {
+  const [resetting, setResetting] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  async function handleReset() {
+    if (!confirm("Начислить монеты всем арендаторам на основе их юнитов и планов? Текущие балансы будут перезаписаны.")) return;
+    setResetting(true);
+    setResult(null);
+    try {
+      const res = await api.post<{ reset_count: number; details: { company: string; old: number; new: number }[] }>("/tenants/reset-monthly-coins");
+      const d = res.data;
+      setResult(`Начислено: ${d.reset_count} арендатор(ов). ${d.details.map((x) => `${x.company}: ${Math.round(x.old)} → ${Math.round(x.new)}`).join(", ")}`);
+      setToast("Монеты начислены");
+      setTimeout(() => setToast(null), 3000);
+    } catch (e: unknown) {
+      setResult((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed");
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #e5e7eb" }}>
+      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Начисление монет</div>
+      <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 12, lineHeight: 1.6 }}>
+        Пересчитать и начислить монеты всем арендаторам на основании их юнитов × % плана.
+        Текущий баланс монет будет заменён на рассчитанное начисление.
+        В production это будет cron-задача на 1-е число каждого месяца.
+      </p>
+      <button
+        onClick={handleReset}
+        disabled={resetting}
+        style={{ padding: "8px 16px", background: "#D97706", color: "white", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: resetting ? 0.6 : 1 }}
+      >
+        {resetting ? "Начисляем..." : "Начислить монеты на месяц"}
+      </button>
+      {result && (
+        <div style={{ marginTop: 8, fontSize: 12, color: "#374151", background: "#fef3c7", padding: "8px 12px", borderRadius: 6, border: "1px solid #fcd34d" }}>
+          {result}
         </div>
       )}
     </div>

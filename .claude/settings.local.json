@@ -1,7 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(ls C:/cbc-coworking/app/*.py)",
+      "Bash(curl -s -X POST 'https://cbc-coworking-api-production.up.railway.app/auth/token' -H 'Content-Type: application/x-www-form-urlencoded' -d 'username=am@cbcestate.uz&password=CBC2026admin!')",
+      "Bash(curl -s https://cbc-coworking-api-production.up.railway.app/tenants/debug/joins -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzc2OTE5NDM3fQ.DH6jsWqJvpCuConx1y_e2Ox4kGHTldisjo8HQnKEWQk')",
+      "Bash(python3 -m json.tool)",
+      "Bash(node -e \"process.stdin.resume\\(\\);let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>console.log\\(JSON.stringify\\(JSON.parse\\(d\\),null,2\\)\\)\\)\")",
+      "Bash(curl -s 'https://cbc-coworking-api-production.up.railway.app/resources/?building_id=1' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzc2OTE5NDM3fQ.DH6jsWqJvpCuConx1y_e2Ox4kGHTldisjo8HQnKEWQk')",
+      "Bash(node -e \"process.stdin.resume\\(\\);let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{let r=JSON.parse\\(d\\);r.forEach\\(x=>console.log\\(x.id,x.name,x.resource_type,x.status,'tid:',x.tenant_id,'tname:',x.tenant_name,'plan:',x.plan_id,'rate:',x.monthly_rate\\)\\)}\\)\")",
+      "Bash(curl -v 'https://cbc-coworking-api-production.up.railway.app/resources/?building_id=1' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzc2OTE5NDM3fQ.DH6jsWqJvpCuConx1y_e2Ox4kGHTldisjo8HQnKEWQk')",
+      "Bash(curl -sL 'https://cbc-coworking-api-production.up.railway.app/resources?building_id=1' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzc2OTE5NDM3fQ.DH6jsWqJvpCuConx1y_e2Ox4kGHTldisjo8HQnKEWQk')",
+      "Bash(node -e \"process.stdin.resume\\(\\);let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{let r=JSON.parse\\(d\\);r.forEach\\(x=>console.log\\(x.id, JSON.stringify\\(x.name\\), x.resource_type, x.status, 'tid:'+x.tenant_id, 'tname:'+JSON.stringify\\(x.tenant_name\\), 'plan:'+x.plan_id, 'rate:'+x.monthly_rate\\)\\)}\\)\")",
+      "Bash(curl -sL https://cbc-coworking-api-production.up.railway.app/tenants/ -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzc2OTE5NDM3fQ.DH6jsWqJvpCuConx1y_e2Ox4kGHTldisjo8HQnKEWQk')",
+      "Bash(curl -sL \"https://cbc-coworking-api-production.up.railway.app/tenants/\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzc2OTE5NDM3fQ.DH6jsWqJvpCuConx1y_e2Ox4kGHTldisjo8HQnKEWQk\")"
     ]
   }
 }

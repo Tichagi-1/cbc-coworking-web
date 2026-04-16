@@ -5,6 +5,7 @@ import { Calendar, momentLocalizer, Views } from "react-big-calendar";
 import moment from "moment";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import { api } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
 
 const localizer = momentLocalizer(moment);
 const today = new Date().toISOString().slice(0, 10);
@@ -240,7 +241,7 @@ export default function WorkspacePage() {
           <div style={{ background: "#fef3c7", padding: "4px 12px", borderRadius: 6, fontSize: 13, fontWeight: 600 }}>
             {Math.round(coinBalance).toLocaleString()} coins
           </div>
-          {(role === "admin" || role === "manager" || role === "receptionist") && tenants.length > 0 && (
+          {hasPermission("create_booking") && tenants.length > 0 && (
             <select value={selectedTenantId || ""} onChange={(e) => {
               const id = +e.target.value;
               setSelectedTenantId(id);
@@ -368,7 +369,7 @@ export default function WorkspacePage() {
               </select>
             </label>
 
-            {(role === "admin" || role === "manager" || role === "receptionist") && tenants.length > 0 && (
+            {hasPermission("create_booking") && tenants.length > 0 && (
               <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
                 Tenant
                 <select value={selectedTenantId || ""} onChange={(e) => {
