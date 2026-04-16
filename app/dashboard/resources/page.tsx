@@ -5,6 +5,7 @@ import Cookies from "js-cookie";
 
 import { api, ROLE_COOKIE } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
+import { formatMoney } from "@/lib/currency";
 import { useProperty } from "@/lib/PropertyContext";
 import EditResourceModal from "@/components/EditResourceModal";
 import type {
@@ -54,7 +55,7 @@ function formatRate(r: Resource): string {
     return r.rate_per_hour ? `$${r.rate_per_hour} / hr` : "—";
   }
   if (r.effective_monthly_rate != null) {
-    return `${r.effective_monthly_rate.toLocaleString()} сум / month`;
+    return `${formatMoney(r.effective_monthly_rate)} / month`;
   }
   if (r.monthly_rate == null) return "—";
   const period = r.rate_period && r.rate_period !== "month" ? r.rate_period : "month";
@@ -68,9 +69,7 @@ function computePlanRate(plan: Plan, seats: number | null): number {
   return plan.base_rate_uzs;
 }
 
-function formatUzs(value: number): string {
-  return value.toLocaleString() + " сум";
-}
+// Currency formatting moved to lib/currency.ts
 
 export default function ResourcesPage() {
   const { propertyId: BUILDING_ID } = useProperty();
@@ -587,7 +586,7 @@ function AddResourceModal({
               {plans.map((p) => (<option key={p.id} value={p.id}>{p.name} ({p.billing_mode === "per_unit" ? "per unit" : "per seat"})</option>))}
             </select>
             {selectedPlan && addPlanRatePreview != null && (
-              <div className="text-xs text-gray-500 mt-1">{selectedPlan.billing_mode === "per_seat" ? `= ${formatUzs(selectedPlan.base_rate_uzs)} x ${parseInt(seats, 10) || 1} seats = ${formatUzs(addPlanRatePreview)}/month` : `= ${formatUzs(addPlanRatePreview)}/month`}</div>
+              <div className="text-xs text-gray-500 mt-1">{selectedPlan.billing_mode === "per_seat" ? `= ${formatMoney(selectedPlan.base_rate_uzs)} x ${parseInt(seats, 10) || 1} seats = ${formatMoney(addPlanRatePreview)}/month` : `= ${formatMoney(addPlanRatePreview)}/month`}</div>
             )}
           </div>
         )}

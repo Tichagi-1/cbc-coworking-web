@@ -3,12 +3,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
+import { formatMoney } from "@/lib/currency";
 import { useProperty } from "@/lib/PropertyContext";
 import type { BillingMode, Plan } from "@/lib/types";
-
-function formatUzs(value: number): string {
-  return value.toLocaleString() + " сум";
-}
 
 export default function PlansPage() {
   const { propertyId: BUILDING_ID } = useProperty();
@@ -153,7 +150,7 @@ export default function PlansPage() {
     const rate = parseFloat(baseRate) || 0;
     const pct = parseFloat(coinPct) || 0;
     const coins = Math.round((rate * pct) / 100);
-    return `${pct}% of ${formatUzs(rate)} = ${coins.toLocaleString()} coins/month`;
+    return `${pct}% of ${formatMoney(rate)} = ${coins.toLocaleString()} coins/month`;
   })();
 
   const meetingPreview = (() => {
@@ -237,7 +234,7 @@ export default function PlansPage() {
                   )}
                 </div>
                 <div className="text-sm text-gray-600 mt-2">
-                  {formatUzs(p.base_rate_uzs)} / month
+                  {formatMoney(p.base_rate_uzs)} / month
                 </div>
               </button>
             );
@@ -319,7 +316,7 @@ export default function PlansPage() {
                     className="w-48 rounded-md border border-gray-300 px-3 py-2 text-sm"
                   />
                   <span className="text-sm text-gray-500">
-                    = {formatUzs(parseFloat(baseRate) || 0)} / month
+                    = {formatMoney(parseFloat(baseRate) || 0)} / month
                   </span>
                 </div>
               </div>

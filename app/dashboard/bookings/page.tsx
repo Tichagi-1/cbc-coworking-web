@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
+import { getCurrencySymbol } from "@/lib/currency";
 import type { Resource, Booking } from "@/lib/types";
 
 const HOUR_HEIGHT = 60;
@@ -152,7 +153,7 @@ export default function BookingsPage() {
       const ratio = coinsRate > 0 ? moneyRate / coinsRate : 0;
       const moneyUzs = Math.round(remaining * ratio * 12800);
       setCostPreview(
-        `${Math.round(durMin)} min: ${Math.round(coinBalance)} coins + ${moneyUzs.toLocaleString()} сум`
+        `${Math.round(durMin)} min: ${Math.round(coinBalance)} coins + ${moneyUzs.toLocaleString()} ${getCurrencySymbol()}`
       );
     }
   }, [modalFrom, modalTo, selectedRoom, coinBalance]);

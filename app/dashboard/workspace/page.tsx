@@ -6,6 +6,7 @@ import moment from "moment";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import { api } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
+import { getCurrencySymbol } from "@/lib/currency";
 
 const localizer = momentLocalizer(moment);
 const today = new Date().toISOString().slice(0, 10);
@@ -146,7 +147,7 @@ export default function WorkspacePage() {
       const remaining = coinsNeeded - coinBalance;
       const ratio = modalRoom.rate_coins_per_hour > 0 ? modalRoom.rate_money_per_hour / modalRoom.rate_coins_per_hour : 0;
       const uzs = Math.round(remaining * ratio * 12800);
-      setCostPreview(`${Math.round(toMin - fromMin)} min: ${Math.round(coinBalance)} coins + ${uzs.toLocaleString()} сум`);
+      setCostPreview(`${Math.round(toMin - fromMin)} min: ${Math.round(coinBalance)} coins + ${uzs.toLocaleString()} ${getCurrencySymbol()}`);
     }
   }, [modalFrom, modalTo, modalRoom, coinBalance]);
 

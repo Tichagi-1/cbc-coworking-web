@@ -6,6 +6,8 @@ import { ReactNode, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { PropertyProvider, useProperty } from "@/lib/PropertyContext";
 import { hasPermission, getPermissions, getRole } from "@/lib/permissions";
+import { loadCurrency } from "@/lib/currency";
+import { loadTimezone } from "@/lib/timezone";
 
 const NAV_ITEMS = [
   { href: "/dashboard/properties", label: "Properties", icon: "🏢", perm: "view_properties" },
@@ -32,6 +34,8 @@ function DashboardShell({ children }: { children: ReactNode }) {
       if (r.data.logo_url) setLogoUrl(r.data.logo_url);
       if (r.data.company_name) setCompanyName(r.data.company_name);
     }).catch(() => {});
+    loadCurrency();
+    loadTimezone();
 
     // Load permissions: try cookie first, fallback to API
     const perms = getPermissions();

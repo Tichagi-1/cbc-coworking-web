@@ -5,10 +5,9 @@ import dayjs from "dayjs";
 import { api } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
 import type { Tenant, TenantUnitSummary } from "@/lib/types";
+import { formatMoney } from "@/lib/currency";
 
 type TenantWithUnits = Tenant;
-
-const fmtUZS = (n: number) => `${Math.round(n).toLocaleString()} сум`;
 
 interface CoinSummary {
   tenant_id: number;
@@ -139,7 +138,7 @@ export default function TenantsPage() {
                       <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                         {t.units.map((u) => (
                           <span key={u.resource_id}
-                            title={`${u.plan_name ? u.plan_name + " · " : ""}${fmtUZS(u.monthly_rate)}/мес`}
+                            title={`${u.plan_name ? u.plan_name + " · " : ""}${formatMoney(u.monthly_rate)}/мес`}
                             style={{ padding: "1px 6px", borderRadius: 4, background: "#eff6ff", color: "#1e40af", fontWeight: 600, fontSize: 10 }}>
                             {u.name}
                             {u.plan_name && <span style={{ fontWeight: 400, marginLeft: 3, opacity: 0.7 }}>· {u.plan_name}</span>}
@@ -160,7 +159,7 @@ export default function TenantsPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-700">
-                    {t.total_monthly_rate > 0 ? fmtUZS(t.total_monthly_rate) : <span className="text-gray-400">—</span>}
+                    {t.total_monthly_rate > 0 ? formatMoney(t.total_monthly_rate) : <span className="text-gray-400">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-700">
                     {t.monthly_coin_allowance > 0 ? Math.round(t.monthly_coin_allowance).toLocaleString() : <span className="text-gray-400">—</span>}
@@ -419,14 +418,14 @@ function CoinModal({
                   <tr key={u.resource_id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                     <td style={{ padding: "4px 6px", color: "#374151", fontWeight: 500 }}>{u.name}</td>
                     <td style={{ padding: "4px 6px", color: "#6b7280" }}>{u.plan_name || "—"}</td>
-                    <td style={{ padding: "4px 6px", textAlign: "right", color: "#374151" }}>{fmtUZS(u.monthly_rate)}</td>
+                    <td style={{ padding: "4px 6px", textAlign: "right", color: "#374151" }}>{formatMoney(u.monthly_rate)}</td>
                     <td style={{ padding: "4px 6px", textAlign: "right", color: "#6b7280" }}>{u.coin_pct}%</td>
                     <td style={{ padding: "4px 6px", textAlign: "right", color: "#003DA5", fontWeight: 600 }}>{Math.round(u.coin_allowance).toLocaleString()}</td>
                   </tr>
                 ))}
                 <tr style={{ borderTop: "2px solid #d1d5db", background: "#f9fafb" }}>
                   <td colSpan={2} style={{ padding: "6px", fontWeight: 700, color: "#111827" }}>Total</td>
-                  <td style={{ padding: "6px", textAlign: "right", fontWeight: 700, color: "#111827" }}>{fmtUZS(tenant.total_monthly_rate)}</td>
+                  <td style={{ padding: "6px", textAlign: "right", fontWeight: 700, color: "#111827" }}>{formatMoney(tenant.total_monthly_rate)}</td>
                   <td />
                   <td style={{ padding: "6px", textAlign: "right", fontWeight: 700, color: "#003DA5" }}>{Math.round(tenant.monthly_coin_allowance).toLocaleString()}</td>
                 </tr>
@@ -738,7 +737,7 @@ function EditTenantModal({ tenant, onClose, onSaved }: { tenant: Tenant; onClose
 
         <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 6, padding: 10, marginTop: 8, fontSize: 12, color: "#6b7280" }}>
           <div><strong>Plan:</strong> {tenant.plan_type || "—"}</div>
-          <div><strong>Monthly rate:</strong> {tenant.total_monthly_rate > 0 ? fmtUZS(tenant.total_monthly_rate) : "—"}</div>
+          <div><strong>Monthly rate:</strong> {tenant.total_monthly_rate > 0 ? formatMoney(tenant.total_monthly_rate) : "—"}</div>
           <div><strong>Coins/мес:</strong> {tenant.monthly_coin_allowance > 0 ? Math.round(tenant.monthly_coin_allowance).toLocaleString() : "—"}</div>
           <div style={{ marginTop: 4, fontStyle: "italic" }}>Computed from {tenant.unit_count ?? 0} assigned unit(s). Edit rates on the Resources / Floor Map.</div>
         </div>

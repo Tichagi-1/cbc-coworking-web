@@ -120,6 +120,8 @@ export default function SettingsPage() {
       {/* General */}
       {tab === "General" && (
         <div style={{ maxWidth: 500 }}>
+          <GeneralLocaleSection settings={settings} setSettings={setSettings} setToast={setToast} />
+
           {["company_name", "building_name", "address", "phone", "email"].map((key) => (
             <label key={key} style={labelStyle}>
               {key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
@@ -718,6 +720,108 @@ function SaltoTab({
           {testResult}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── General Locale Section ────────────────────────────────────────────────
+
+const CURRENCIES = [
+  { code: "UZS", label: "Uzbek Som (сум)" },
+  { code: "USD", label: "US Dollar ($)" },
+  { code: "EUR", label: "Euro (€)" },
+  { code: "RUB", label: "Russian Ruble (₽)" },
+  { code: "GBP", label: "British Pound (£)" },
+  { code: "KZT", label: "Kazakhstani Tenge (₸)" },
+  { code: "CNY", label: "Chinese Yuan (¥)" },
+  { code: "TRY", label: "Turkish Lira (₺)" },
+  { code: "AED", label: "UAE Dirham (د.إ)" },
+  { code: "CHF", label: "Swiss Franc (CHF)" },
+  { code: "JPY", label: "Japanese Yen (¥)" },
+  { code: "INR", label: "Indian Rupee (₹)" },
+  { code: "KRW", label: "South Korean Won (₩)" },
+];
+
+const TIMEZONES = [
+  { tz: "UTC", label: "UTC" },
+  { tz: "Europe/London", label: "Europe/London (GMT+0)" },
+  { tz: "Europe/Berlin", label: "Europe/Berlin (GMT+1)" },
+  { tz: "Europe/Paris", label: "Europe/Paris (GMT+1)" },
+  { tz: "Europe/Moscow", label: "Europe/Moscow (GMT+3)" },
+  { tz: "Asia/Dubai", label: "Asia/Dubai (GMT+4)" },
+  { tz: "Asia/Tashkent", label: "Asia/Tashkent (GMT+5)" },
+  { tz: "Asia/Almaty", label: "Asia/Almaty (GMT+5)" },
+  { tz: "Asia/Kolkata", label: "Asia/Kolkata (GMT+5:30)" },
+  { tz: "Asia/Shanghai", label: "Asia/Shanghai (GMT+8)" },
+  { tz: "Asia/Singapore", label: "Asia/Singapore (GMT+8)" },
+  { tz: "Asia/Tokyo", label: "Asia/Tokyo (GMT+9)" },
+  { tz: "Asia/Seoul", label: "Asia/Seoul (GMT+9)" },
+  { tz: "America/New_York", label: "America/New_York (GMT-5)" },
+  { tz: "America/Chicago", label: "America/Chicago (GMT-6)" },
+  { tz: "America/Los_Angeles", label: "America/Los_Angeles (GMT-8)" },
+];
+
+function GeneralLocaleSection({
+  settings, setSettings, setToast,
+}: {
+  settings: Record<string, string>;
+  setSettings: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  setToast: (t: string | null) => void;
+}) {
+  const debouncer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const save = (currency: string, timezone: string) => {
+    if (debouncer.current) clearTimeout(debouncer.current);
+    debouncer.current = setTimeout(async () => {
+      try {
+        await api.patch("/settings/general", { currency, timezone });
+        // Update the global singletons so all pages pick up the change
+        import("@/lib/currency").then((m) => m.setCurrency(currency));
+        import("@/lib/timezone").then((m) => m.setTimezone(timezone));
+        setToast("Saved");
+        setTimeout(() => setToast(null), 1500);
+      } catch { /* noop */ }
+    }, 500);
+  };
+
+  const currency = settings.global_currency || "UZS";
+  const timezone = settings.global_timezone || "Asia/Tashkent";
+
+  return (
+    <div style={{ marginBottom: 24, paddingBottom: 20, borderBottom: "1px solid #e5e7eb" }}>
+      <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Региональные настройки</div>
+
+      <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 14 }}>
+        Глобальная валюта
+        <select
+          value={currency}
+          onChange={(e) => {
+            setSettings((p) => ({ ...p, global_currency: e.target.value }));
+            save(e.target.value, timezone);
+          }}
+          style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box" as const }}
+        >
+          {CURRENCIES.map((c) => (
+            <option key={c.code} value={c.code}>{c.code} — {c.label}</option>
+          ))}
+        </select>
+      </label>
+
+      <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 14 }}>
+        Глобальный часовой пояс
+        <select
+          value={timezone}
+          onChange={(e) => {
+            setSettings((p) => ({ ...p, global_timezone: e.target.value }));
+            save(currency, e.target.value);
+          }}
+          style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box" as const }}
+        >
+          {TIMEZONES.map((t) => (
+            <option key={t.tz} value={t.tz}>{t.label}</option>
+          ))}
+        </select>
+      </label>
     </div>
   );
 }

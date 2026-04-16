@@ -7,14 +7,10 @@ import {
 } from "recharts";
 import { api } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
+import { formatMoney } from "@/lib/currency";
 
 const ACCENT = "#003DA5";
 const COLORS = ["#003DA5", "#1F69FF", "#418FDE", "#DAE1E8", "#6366f1", "#f59e0b"];
-
-const fmtUZS = (n: number) =>
-  n >= 1000000
-    ? `${(n / 1000000).toFixed(1)}M сум`
-    : `${Math.round(n).toLocaleString()} сум`;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -124,7 +120,7 @@ export default function AnalyticsPage() {
         <KPICard label="Active Tenants" value={kpi.active_tenants ?? 0} sub="companies" />
         <KPICard label="Bookings Today" value={kpi.bookings_today ?? 0} sub="sessions" />
         <KPICard label="Coins Spent" value={(kpi.coins_spent_month ?? 0).toLocaleString()} sub="this month" color={ACCENT} />
-        <KPICard label="Cash Revenue" value={fmtUZS(kpi.revenue_month_uzs ?? 0)} sub="this month" color="#16a34a" />
+        <KPICard label="Cash Revenue" value={formatMoney(kpi.revenue_month_uzs ?? 0)} sub="this month" color="#16a34a" />
         <KPICard label="Rooms Free" value={`${kpi.rooms_free_now ?? 0}/${kpi.total_rooms ?? 0}`} sub="now"
           color={(kpi.rooms_free_now ?? 0) > 0 ? "#16a34a" : "#dc2626"} />
       </div>
@@ -222,7 +218,7 @@ export default function AnalyticsPage() {
           </ResponsiveContainer>
           <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 10, marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
             <span style={{ color: "#6b7280" }}>Cash collected</span>
-            <span style={{ fontWeight: 600, color: "#16a34a" }}>{fmtUZS(coin_economy.revenue_month)}</span>
+            <span style={{ fontWeight: 600, color: "#16a34a" }}>{formatMoney(coin_economy.revenue_month)}</span>
           </div>
         </div>
       </div>
@@ -301,7 +297,7 @@ export default function AnalyticsPage() {
                       {b.coins > 0 ? b.coins : "—"}
                     </td>
                     <td style={{ padding: "9px 14px", fontSize: 12, color: b.money_uzs > 0 ? "#16a34a" : "#9ca3af", fontWeight: b.money_uzs > 0 ? 600 : 400 }}>
-                      {b.money_uzs > 0 ? fmtUZS(b.money_uzs) : "—"}
+                      {b.money_uzs > 0 ? formatMoney(b.money_uzs) : "—"}
                     </td>
                   </tr>
                 ))}
