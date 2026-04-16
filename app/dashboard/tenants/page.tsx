@@ -42,6 +42,7 @@ export default function TenantsPage() {
   const [editTenant, setEditTenant] = useState<TenantWithUnits | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TenantWithUnits | null>(null);
   const [deletingTenant, setDeletingTenant] = useState(false);
+  const [cashModalTenant, setCashModalTenant] = useState<TenantWithUnits | null>(null);
 
   const canCreate = hasPermission("create_tenant");
   const canEdit = hasPermission("edit_tenant");
@@ -189,6 +190,12 @@ export default function TenantsPage() {
                         >
                           Coins
                         </button>
+                        <button
+                          onClick={() => setCashModalTenant(t)}
+                          style={{ padding: "4px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500, color: "#16a34a" }}
+                        >
+                          Оплата
+                        </button>
                         <a
                           href={`/dashboard/tenants/${t.id}/members`}
                           style={{padding:'4px 10px', border:'1px solid #d1d5db', borderRadius:6, background:'white', cursor:'pointer', fontSize:12, fontWeight:500, textDecoration:'none', color:'#374151'}}
@@ -286,6 +293,20 @@ export default function TenantsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Cash payment modal */}
+      {cashModalTenant && (
+        <CashPaymentModal
+          tenant={cashModalTenant}
+          onClose={() => setCashModalTenant(null)}
+          onSaved={async () => {
+            setCashModalTenant(null);
+            await loadTenants();
+            setToast("Оплата записана");
+            setTimeout(() => setToast(null), 3000);
+          }}
+        />
       )}
     </div>
   );
@@ -746,6 +767,96 @@ function EditTenantModal({ tenant, onClose, onSaved }: { tenant: Tenant; onClose
           <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Cancel</button>
           <button onClick={handleSave} disabled={saving} style={{ padding: "8px 16px", background: "#003DA5", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, opacity: saving ? 0.7 : 1 }}>
             {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Cash payment modal ───────────────────────────────────────────────────
+
+function CashPaymentModal({
+  tenant, onClose, onSaved,
+}: {
+  tenant: Tenant;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [category, setCategory] = useState<"rent" | "meeting_rooms">("rent");
+  const [amount, setAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit() {
+    if (!amount || parseFloat(amount) <= 0) { setError("Введите сумму"); return; }
+    setSaving(true);
+    setError("");
+    try {
+      await api.post(`/tenants/${tenant.id}/cash-payments`, {
+        amount: parseFloat(amount),
+        category,
+        payment_date: paymentDate,
+        reason: reason.trim() || null,
+      });
+      await onSaved();
+    } catch (e: unknown) {
+      setError((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputStyle: React.CSSProperties = {
+    display: "block", width: "100%", marginTop: 4, padding: "8px 10px",
+    border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)" }}
+      onMouseDown={onClose}>
+      <div style={{ background: "white", borderRadius: 12, padding: 28, width: 440, maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
+        onMouseDown={(e) => e.stopPropagation()}>
+        <h2 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 600 }}>
+          Записать оплату — {tenant.company_name}
+        </h2>
+
+        {error && <div style={{ background: "#fee2e2", color: "#dc2626", padding: "8px 12px", borderRadius: 6, marginBottom: 12, fontSize: 13 }}>{error}</div>}
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "#374151", marginBottom: 8 }}>Категория оплаты</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {([["rent", "Аренда офиса"], ["meeting_rooms", "Митинг румы"]] as const).map(([val, label]) => (
+              <label key={val} style={{ flex: 1, padding: "10px 12px", border: `2px solid ${category === val ? "#003DA5" : "#e5e7eb"}`, borderRadius: 8, cursor: "pointer", fontSize: 13, textAlign: "center" as const, background: category === val ? "#eff6ff" : "white", color: category === val ? "#003DA5" : "#6b7280", fontWeight: category === val ? 600 : 400 }}>
+                <input type="radio" name="cat" value={val} checked={category === val} onChange={() => setCategory(val)} style={{ display: "none" }} />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 14 }}>
+          Сумма
+          <input type="number" min={0} step={1000} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="500000" style={inputStyle} />
+        </label>
+
+        <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 14 }}>
+          Дата платежа
+          <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} style={inputStyle} />
+          <span style={{ fontSize: 11, color: "#9ca3af" }}>Фактическая дата получения оплаты</span>
+        </label>
+
+        <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 16 }}>
+          Комментарий
+          <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Наличная оплата" style={inputStyle} />
+        </label>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Отмена</button>
+          <button onClick={handleSubmit} disabled={saving} style={{ padding: "8px 16px", background: "#16a34a", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600, opacity: saving ? 0.6 : 1 }}>
+            {saving ? "Сохраняем..." : "Записать оплату"}
           </button>
         </div>
       </div>
