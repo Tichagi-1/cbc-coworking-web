@@ -46,7 +46,7 @@ const STATUS_PILL: Record<UnitStatus, string> = {
 };
 
 function formatRate(r: Resource): string {
-  if (r.resource_type === "meeting_room") {
+  if (["meeting_room", "zoom_cabin", "event_zone"].includes(r.resource_type)) {
     const c = r.rate_coins_per_hour ?? 0;
     const m = r.rate_money_per_hour ?? 0;
     return `${c} coins / $${m} per hr`;
@@ -493,7 +493,7 @@ function AddResourceModal({
         status: "vacant",
         plan_id: planId,
       };
-      if (type === "meeting_room") {
+      if (["meeting_room", "zoom_cabin", "event_zone"].includes(type)) {
         body.capacity = parseInt(capacity, 10) || 0;
         body.rate_coins_per_hour = parseFloat(coinsHr) || 0;
         body.rate_money_per_hour = parseFloat(moneyHr) || 0;
@@ -515,7 +515,7 @@ function AddResourceModal({
   }
 
   const showFlex = type === "office" || type === "hot_desk" || type === "open_space";
-  const showMeeting = type === "meeting_room";
+  const showMeeting = ["meeting_room", "zoom_cabin", "event_zone"].includes(type);
   const showAmenity = type === "amenity";
 
   return (

@@ -127,7 +127,7 @@ export default function ZonePanel({
       patch.area_m2 = parseFloat(area) || 0;
       patch.seats = parseInt(seats, 10) || 1;
       patch.monthly_rate = parseFloat(rate) || 0;
-    } else if (resource.resource_type === "meeting_room") {
+    } else if (["meeting_room", "zoom_cabin", "event_zone"].includes(resource.resource_type)) {
       patch.capacity = parseInt(capacity, 10) || 0;
       patch.rate_coins_per_hour = parseFloat(coinsHr) || 0;
       patch.rate_money_per_hour = parseFloat(moneyHr) || 0;
@@ -248,9 +248,9 @@ export default function ZonePanel({
                   </>
                 )}
                 {resource.rate_coins_per_hour != null &&
-                  resource.resource_type === "meeting_room" && (
+                  ["meeting_room", "zoom_cabin", "event_zone"].includes(resource.resource_type) && (
                     <>
-                      <dt className="text-gray-500">Rate</dt>
+                      <dt className="text-gray-500">Rate / hr</dt>
                       <dd className="text-gray-900 font-medium">
                         {resource.rate_coins_per_hour} coins / $
                         {resource.rate_money_per_hour ?? 0} per hr
@@ -383,7 +383,7 @@ export default function ZonePanel({
                 </div>
               )}
 
-              {resource.resource_type === "meeting_room" && (
+              {["meeting_room", "zoom_cabin", "event_zone"].includes(resource.resource_type) && (
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">

@@ -174,7 +174,9 @@ export interface Tenant {
   monthly_rate: number; // alias of total_monthly_rate for back-compat
   // Mutable
   coin_balance: number;
+  cash_balance: number;
   coin_last_reset: string | null;
+  contact_phone?: string | null;
   is_resident: boolean;
   unit_number: string | null;
   notes: string | null;

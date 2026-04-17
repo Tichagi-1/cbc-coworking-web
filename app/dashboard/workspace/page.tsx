@@ -133,8 +133,11 @@ export default function WorkspacePage() {
     [rooms]
   );
 
-  // ── Cost preview ──────────────────────────────────────────────────────
+  // ── Cost preview with smart suggestion ──────────────────────────────
+  const [coinSuggestion, setCoinSuggestion] = useState<{ label: string; endTime: string } | null>(null);
+
   useEffect(() => {
+    setCoinSuggestion(null);
     if (!modalRoom) { setCostPreview(""); return; }
     const fromMin = timeToMin(modalFrom);
     const toMin = timeToMin(modalTo);
@@ -148,6 +151,19 @@ export default function WorkspacePage() {
       const ratio = modalRoom.rate_coins_per_hour > 0 ? modalRoom.rate_money_per_hour / modalRoom.rate_coins_per_hour : 0;
       const uzs = Math.round(remaining * ratio * 12800);
       setCostPreview(`${Math.round(toMin - fromMin)} min: ${Math.round(coinBalance)} coins + ${uzs.toLocaleString()} ${getCurrencySymbol()}`);
+
+      // Smart suggestion: max affordable time by coins only (rounded to 15 min)
+      if (coinBalance > 0 && modalRoom.rate_coins_per_hour > 0) {
+        const maxMin = Math.floor(coinBalance / (modalRoom.rate_coins_per_hour / 60));
+        const roundedMin = Math.floor(maxMin / 15) * 15;
+        if (roundedMin >= 15) {
+          const sugH = Math.floor(roundedMin / 60);
+          const sugM = roundedMin % 60;
+          const sugLabel = sugM > 0 ? `${sugH}ч ${sugM}мин` : `${sugH}ч`;
+          const sugEnd = minToTime(fromMin + roundedMin);
+          setCoinSuggestion({ label: `Только монетами: ${sugLabel} (до ${sugEnd})`, endTime: sugEnd });
+        }
+      }
     }
   }, [modalFrom, modalTo, modalRoom, coinBalance]);
 
@@ -411,9 +427,19 @@ export default function WorkspacePage() {
             </div>
 
             {costPreview && (
-              <div style={{ padding: "10px 14px", background: "#f0f9ff", borderRadius: 8, fontSize: 13, color: "#0369a1", marginBottom: 16, border: "1px solid #bae6fd" }}>
+              <div style={{ padding: "10px 14px", background: "#f0f9ff", borderRadius: 8, fontSize: 13, color: "#0369a1", marginBottom: coinSuggestion ? 8 : 16, border: "1px solid #bae6fd" }}>
                 {costPreview}
               </div>
+            )}
+            {coinSuggestion && (
+              <button
+                type="button"
+                onClick={() => { setModalTo(coinSuggestion.endTime); setCoinSuggestion(null); }}
+                style={{ display: "block", width: "100%", padding: "8px 14px", background: "#fef3c7", borderRadius: 8, fontSize: 12, color: "#92400e", marginBottom: 16, border: "1px solid #fcd34d", cursor: "pointer", textAlign: "left" }}
+              >
+                ⚡ {coinSuggestion.label}
+                <span style={{ display: "block", fontSize: 11, color: "#a16207", marginTop: 2 }}>Нажмите, чтобы изменить время</span>
+              </button>
             )}
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>

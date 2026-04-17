@@ -43,6 +43,7 @@ export default function TenantsPage() {
   const [deleteTarget, setDeleteTarget] = useState<TenantWithUnits | null>(null);
   const [deletingTenant, setDeletingTenant] = useState(false);
   const [cashModalTenant, setCashModalTenant] = useState<TenantWithUnits | null>(null);
+  const [cardTenant, setCardTenant] = useState<TenantWithUnits | null>(null);
 
   const canCreate = hasPermission("create_tenant");
   const canEdit = hasPermission("edit_tenant");
@@ -119,6 +120,7 @@ export default function TenantsPage() {
                 <th className="text-right px-4 py-3 font-semibold text-gray-600">Monthly Rate</th>
                 <th className="text-right px-4 py-3 font-semibold text-gray-600" title="Автоматически начисляется 1-го числа каждого месяца. Рассчитывается из стоимости юнитов × % плана.">Начисление/мес</th>
                 <th className="text-right px-4 py-3 font-semibold text-gray-600" title="Остаток монет. Списывается при бронированиях. Admin может корректировать вручную.">Текущий баланс</th>
+                <th className="text-right px-4 py-3 font-semibold text-gray-600" title="Задолженность по наличным. Начисления за митинг-румы минус оплаты.">Баланс (сум)</th>
                 <th className="text-center px-4 py-3 font-semibold text-gray-600">Resident</th>
                 {isAdmin && (
                   <th className="text-center px-4 py-3 font-semibold text-gray-600">Actions</th>
@@ -127,7 +129,7 @@ export default function TenantsPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {tenants.map((t) => (
-                <tr key={t.id} className="hover:bg-gray-50">
+                <tr key={t.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setCardTenant(t)}>
                   <td className="px-4 py-3">
                     <div style={{ fontWeight: 500, color: "#111827" }}>{t.company_name}</div>
                     <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 999, background: t.tenant_type === "individual" ? "#fef3c7" : "#eff6ff", color: t.tenant_type === "individual" ? "#92400e" : "#1e40af", fontWeight: 600 }}>
@@ -167,6 +169,9 @@ export default function TenantsPage() {
                   </td>
                   <td className="px-4 py-3 text-right font-semibold" style={{ color: balanceColor(t.coin_balance) }}>
                     {Math.round(t.coin_balance).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold" style={{ color: (t.cash_balance || 0) > 0 ? "#DC2626" : (t.cash_balance || 0) < 0 ? "#2563eb" : "#059669" }}>
+                    {(t.cash_balance || 0) !== 0 ? formatMoney(t.cash_balance || 0) : <span className="text-gray-400">—</span>}
                   </td>
                   <td className="px-4 py-3 text-center">
                     {t.is_resident ? (
@@ -295,6 +300,20 @@ export default function TenantsPage() {
         </div>
       )}
 
+      {/* Tenant detail card (slide-out) */}
+      {cardTenant && (
+        <TenantCard
+          tenant={cardTenant}
+          isAdmin={isAdmin}
+          onClose={() => setCardTenant(null)}
+          onEdit={() => { setEditTenant(cardTenant); setCardTenant(null); }}
+          onCoins={() => { setCoinModalTenant(cardTenant); setCardTenant(null); }}
+          onCash={() => { setCashModalTenant(cardTenant); setCardTenant(null); }}
+          onDelete={() => { setDeleteTarget(cardTenant); setCardTenant(null); }}
+          onRefresh={loadTenants}
+        />
+      )}
+
       {/* Cash payment modal */}
       {cashModalTenant && (
         <CashPaymentModal
@@ -308,6 +327,154 @@ export default function TenantsPage() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+// ── Tenant detail card (slide-out panel) ─────────────────────────────────
+
+interface CashTx { id: number; type: string; category: string; amount: number; payment_date: string; reason: string | null; created_at: string | null }
+
+function TenantCard({
+  tenant, isAdmin, onClose, onEdit, onCoins, onCash, onDelete, onRefresh,
+}: {
+  tenant: Tenant;
+  isAdmin: boolean;
+  onClose: () => void;
+  onEdit: () => void;
+  onCoins: () => void;
+  onCash: () => void;
+  onDelete: () => void;
+  onRefresh: () => Promise<void>;
+}) {
+  const [cashTxs, setCashTxs] = useState<CashTx[]>([]);
+  const [coinTxs, setCoinTxs] = useState<CoinTx[]>([]);
+  const [txTab, setTxTab] = useState<"all" | "coins" | "cash">("all");
+
+  useEffect(() => {
+    api.get<{ transactions: CashTx[] }>(`/tenants/${tenant.id}/cash-balance`).then((r) => setCashTxs(r.data.transactions)).catch(() => {});
+    api.get<CoinTx[]>(`/tenants/${tenant.id}/coins/history`).then((r) => setCoinTxs(r.data)).catch(() => {});
+  }, [tenant.id]);
+
+  const allTxs = [
+    ...coinTxs.map((t) => ({ date: t.created_at, type: "coin" as const, delta: t.delta, label: t.reason?.replace("_", " ") || "", note: t.note })),
+    ...cashTxs.map((t) => ({ date: t.created_at || t.payment_date, type: "cash" as const, delta: t.type === "payment" ? t.amount : -t.amount, label: `${t.type === "payment" ? "Оплата" : "Начисление"} (${t.category === "rent" ? "аренда" : "митинги"})`, note: t.reason })),
+  ].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  const filtered = txTab === "coins" ? allTxs.filter((t) => t.type === "coin") : txTab === "cash" ? allTxs.filter((t) => t.type === "cash") : allTxs;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", justifyContent: "flex-end" }} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ width: 520, maxWidth: "90vw", height: "100vh", background: "white", boxShadow: "-4px 0 30px rgba(0,0,0,0.15)", overflowY: "auto", padding: "24px 28px" }}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 20 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#111827" }}>{tenant.company_name}</h2>
+            <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
+              {tenant.contact_name && <span>{tenant.contact_name}</span>}
+              {tenant.contact_phone && <span> · {tenant.contact_phone}</span>}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ border: "none", background: "none", fontSize: 22, cursor: "pointer", color: "#9ca3af" }}>×</button>
+        </div>
+
+        {/* Units */}
+        {tenant.units && tenant.units.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 8 }}>Юниты</div>
+            <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>
+                  <th style={{ padding: "4px 6px", textAlign: "left", fontWeight: 500 }}>Юнит</th>
+                  <th style={{ padding: "4px 6px", textAlign: "left", fontWeight: 500 }}>Тип</th>
+                  <th style={{ padding: "4px 6px", textAlign: "left", fontWeight: 500 }}>Этаж</th>
+                  <th style={{ padding: "4px 6px", textAlign: "right", fontWeight: 500 }}>Тариф</th>
+                  <th style={{ padding: "4px 6px", textAlign: "right", fontWeight: 500 }}>Стоимость</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tenant.units.map((u: TenantUnitSummary) => (
+                  <tr key={u.resource_id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "4px 6px", fontWeight: 500 }}>{u.name}</td>
+                    <td style={{ padding: "4px 6px", color: "#6b7280" }}>{u.type}</td>
+                    <td style={{ padding: "4px 6px", color: "#6b7280" }}>{u.floor_name || "—"}</td>
+                    <td style={{ padding: "4px 6px", textAlign: "right", color: "#6b7280" }}>{u.plan_name || "—"}</td>
+                    <td style={{ padding: "4px 6px", textAlign: "right" }}>{formatMoney(u.monthly_rate)}</td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: "2px solid #d1d5db", background: "#f9fafb" }}>
+                  <td colSpan={4} style={{ padding: "5px 6px", fontWeight: 700 }}>Итого</td>
+                  <td style={{ padding: "5px 6px", textAlign: "right", fontWeight: 700 }}>{formatMoney(tenant.total_monthly_rate)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Financials */}
+        <div style={{ marginBottom: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          <div style={{ background: "#f0fdf4", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+            <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>Начисление/мес</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#059669" }}>{Math.round(tenant.monthly_coin_allowance).toLocaleString()}</div>
+          </div>
+          <div style={{ background: "#fef3c7", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+            <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>Баланс монет</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: balanceColor(tenant.coin_balance) }}>{Math.round(tenant.coin_balance).toLocaleString()}</div>
+          </div>
+          <div style={{ background: (tenant.cash_balance || 0) > 0 ? "#fee2e2" : "#f0fdf4", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+            <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>Задолженность</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: (tenant.cash_balance || 0) > 0 ? "#DC2626" : "#059669" }}>{(tenant.cash_balance || 0) !== 0 ? formatMoney(tenant.cash_balance || 0) : "—"}</div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        {isAdmin && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
+            <button onClick={onEdit} style={{ padding: "6px 14px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500 }}>Редактировать</button>
+            <button onClick={onCoins} style={{ padding: "6px 14px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500 }}>Монеты +/−</button>
+            <button onClick={onCash} style={{ padding: "6px 14px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500, color: "#16a34a" }}>Записать оплату</button>
+            <a href={`/dashboard/tenants/${tenant.id}/members`} style={{ padding: "6px 14px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500, textDecoration: "none", color: "#374151" }}>Members</a>
+            <button onClick={onDelete} style={{ padding: "6px 14px", border: "1px solid #fecaca", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500, color: "#dc2626" }}>Удалить</button>
+          </div>
+        )}
+
+        {/* Transaction history */}
+        <div>
+          <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+            {(["all", "coins", "cash"] as const).map((tab) => (
+              <button key={tab} onClick={() => setTxTab(tab)}
+                style={{ padding: "4px 12px", borderRadius: 6, border: "none", fontSize: 12, fontWeight: 500, cursor: "pointer", background: txTab === tab ? "#003DA5" : "#f3f4f6", color: txTab === tab ? "white" : "#6b7280" }}>
+                {tab === "all" ? "Все" : tab === "coins" ? "Монеты" : "Оплаты"}
+              </button>
+            ))}
+          </div>
+          {filtered.length === 0 ? (
+            <div style={{ fontSize: 13, color: "#9ca3af", padding: 12 }}>Нет операций</div>
+          ) : (
+            <table style={{ width: "100%", fontSize: 11, borderCollapse: "collapse" }}>
+              <tbody>
+                {filtered.slice(0, 20).map((tx, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "5px 4px", color: "#6b7280", whiteSpace: "nowrap" }}>{tx.date ? dayjs(tx.date).format("DD.MM HH:mm") : "—"}</td>
+                    <td style={{ padding: "5px 4px", fontWeight: 600, color: tx.delta >= 0 ? "#059669" : "#DC2626", textAlign: "right", whiteSpace: "nowrap" }}>
+                      {tx.delta >= 0 ? "+" : ""}{Math.round(tx.delta).toLocaleString()}
+                    </td>
+                    <td style={{ padding: "5px 4px", color: "#374151" }}>{tx.label}</td>
+                    <td style={{ padding: "5px 4px", color: "#9ca3af", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.note || ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Info */}
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #e5e7eb", fontSize: 12, color: "#6b7280", lineHeight: 1.8 }}>
+          <div><strong>Email:</strong> user #{tenant.user_id}</div>
+          <div><strong>Резидент:</strong> {tenant.is_resident ? "Да" : "Нет"}</div>
+          {tenant.notes && <div><strong>Примечание:</strong> {tenant.notes}</div>}
+        </div>
+      </div>
     </div>
   );
 }
