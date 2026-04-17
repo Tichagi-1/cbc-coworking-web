@@ -100,7 +100,7 @@ export default function ResourcesPage() {
   const [floors, setFloors] = useState<Floor[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [activeTab, setActiveTab] = useState<"all" | ResourceType>("all");
-  const [floorFilter, setFloorFilter] = useState<number | "all" | "none">("all");
+  const [floorFilter, setFloorFilter] = useState<number | null>(null);
   const [selected, setSelected] = useState<Resource | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,8 +138,7 @@ export default function ResourcesPage() {
 
   const filtered = useMemo(() => {
     let list = activeTab === "all" ? resources : resources.filter((r) => r.resource_type === activeTab);
-    if (floorFilter === "none") list = list.filter((r) => !r.floor_id);
-    else if (floorFilter !== "all") list = list.filter((r) => r.floor_id === floorFilter);
+    if (floorFilter) list = list.filter((r) => r.floor_id === floorFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((r) => r.name.toLowerCase().includes(q) || (r.tenant_name || "").toLowerCase().includes(q));
@@ -219,13 +218,12 @@ export default function ResourcesPage() {
           className="rounded-md border border-gray-300 px-3 py-1.5 text-sm w-64"
         />
         <select
-          value={String(floorFilter)}
-          onChange={(e) => { const v = e.target.value; setFloorFilter(v === "all" || v === "none" ? v : Number(v)); }}
+          value={floorFilter ?? ""}
+          onChange={(e) => setFloorFilter(e.target.value ? Number(e.target.value) : null)}
           className="rounded-md border border-gray-300 px-3 py-1.5 text-sm bg-white"
         >
-          <option value="all">All Floors</option>
+          <option value="">All Floors</option>
           {floors.map((f) => <option key={f.id} value={f.id}>{f.name || `Floor ${f.number}`}</option>)}
-          <option value="none">Unassigned</option>
         </select>
         <div className="ml-auto flex gap-1 bg-gray-100 rounded-lg p-0.5">
           {(["grid", "list", "table"] as const).map((m) => (
