@@ -338,9 +338,13 @@ const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function Flo
   function clearDrawingState() {
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
+    // Remove dot markers + segment lines
     drawingMarkersRef.current.forEach((m) => canvas.remove(m));
     drawingMarkersRef.current = [];
     drawingPointsRef.current = [];
+    // Remove preview line
+    const preview = canvas.getObjects().find((o: any) => o._isPreviewLine);
+    if (preview) canvas.remove(preview);
   }
 
   function renderScene() {
@@ -502,7 +506,20 @@ const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function Flo
     }
   }
 
-  // ── Click and double-click handling ─────────────────────────────────────
+  // ── Suppress/restore zone events during drawing ─────────────────────────
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+    canvas.forEachObject((obj: any) => {
+      if (obj.data) {
+        obj.evented = !drawingEnabled;
+      }
+    });
+    canvas.defaultCursor = drawingEnabled ? "crosshair" : "default";
+    canvas.requestRenderAll();
+  }, [drawingEnabled]);
+
+  // ── Click, move, and double-click handling ─────────────────────────────
   useEffect(() => {
     const canvas = fabricCanvasRef.current;
     const fabric = fabricLibRef.current;
@@ -516,53 +533,104 @@ const FloorCanvas = forwardRef<FloorCanvasHandle, FloorCanvasProps>(function Flo
         return;
       }
 
-      // EDIT mode
-      if (target?.data) {
-        onZoneSelect?.(target.data as Zone);
+      // EDIT mode — select zone if not drawing
+      if (!drawingEnabled) {
+        if (target?.data) onZoneSelect?.(target.data as Zone);
         return;
       }
 
-      if (!drawingEnabled) return;
-
-      // Empty canvas click → drop a drawing point.
-      // canvas.getPointer() returns coordinates in scene/image space,
-      // already adjusted for the current zoom factor.
+      // Drawing mode — place a point
       const pointer = canvas.getPointer(opt.e);
       const point: Point = { x: pointer.x, y: pointer.y };
-      drawingPointsRef.current.push(point);
+      const points = drawingPointsRef.current;
+      points.push(point);
 
+      // Dot marker
       const marker = new fabric.Circle({
         left: point.x - 4,
         top: point.y - 4,
         radius: 4,
-        fill: SELECTED_STROKE,
+        fill: "#1F69FF",
+        stroke: "#FFFFFF",
+        strokeWidth: 1,
         selectable: false,
         evented: false,
-      });
-      drawingMarkersRef.current.push(marker);
+        _isDrawingMarker: true,
+      } as any);
       canvas.add(marker);
+      drawingMarkersRef.current.push(marker);
+
+      // Segment line from previous point
+      if (points.length > 1) {
+        const prev = points[points.length - 2];
+        const seg = new fabric.Line([prev.x, prev.y, point.x, point.y], {
+          stroke: "#1F69FF",
+          strokeWidth: 2,
+          strokeDashArray: [5, 3],
+          selectable: false,
+          evented: false,
+          _isDrawingMarker: true,
+        } as any);
+        canvas.add(seg);
+        drawingMarkersRef.current.push(seg);
+      }
+
+      canvas.requestRenderAll();
+    }
+
+    function handleMouseMove(opt: any) {
+      if (!drawingEnabled || drawingPointsRef.current.length === 0) return;
+      // Remove previous preview line
+      const prev = canvas.getObjects().find((o: any) => o._isPreviewLine);
+      if (prev) canvas.remove(prev);
+
+      const ptr = canvas.getPointer(opt.e);
+      const last = drawingPointsRef.current[drawingPointsRef.current.length - 1];
+      const line = new fabric.Line([last.x, last.y, ptr.x, ptr.y], {
+        stroke: "#1F69FF",
+        strokeWidth: 1,
+        strokeDashArray: [4, 4],
+        selectable: false,
+        evented: false,
+        opacity: 0.6,
+        _isPreviewLine: true,
+      } as any);
+      canvas.add(line);
       canvas.requestRenderAll();
     }
 
     function handleDoubleClick() {
       if (mode !== "edit" || !drawingEnabled) return;
-      const points = drawingPointsRef.current;
+
+      let points = [...drawingPointsRef.current];
+      // Double-click fires two mouse:down — drop duplicate last point
+      if (points.length >= 2) {
+        const a = points[points.length - 1];
+        const b = points[points.length - 2];
+        if (Math.hypot(a.x - b.x, a.y - b.y) < 10) points.pop();
+      }
+
+      // Remove preview line
+      const preview = canvas.getObjects().find((o: any) => o._isPreviewLine);
+      if (preview) canvas.remove(preview);
+
       if (points.length < 3) {
         clearDrawingState();
         canvas.requestRenderAll();
         return;
       }
-      const finished = [...points];
       clearDrawingState();
       canvas.requestRenderAll();
-      onZoneCreated?.(finished);
+      onZoneCreated?.(points);
     }
 
     canvas.on("mouse:down", handleMouseDown);
+    canvas.on("mouse:move", handleMouseMove);
     canvas.on("mouse:dblclick", handleDoubleClick);
 
     return () => {
       canvas.off("mouse:down", handleMouseDown);
+      canvas.off("mouse:move", handleMouseMove);
       canvas.off("mouse:dblclick", handleDoubleClick);
     };
   }, [mode, drawingEnabled, onZoneClick, onZoneSelect, onZoneCreated]);
