@@ -149,7 +149,7 @@ export default function WorkspacePage() {
     } else {
       const remaining = coinsNeeded - coinBalance;
       const ratio = modalRoom.rate_coins_per_hour > 0 ? modalRoom.rate_money_per_hour / modalRoom.rate_coins_per_hour : 0;
-      const uzs = Math.round(remaining * ratio * 12800);
+      const uzs = Math.round(remaining * ratio);
       setCostPreview(`${Math.round(toMin - fromMin)} min: ${Math.round(coinBalance)} coins + ${uzs.toLocaleString()} ${getCurrencySymbol()}`);
 
       // Smart suggestion: max affordable time by coins only (rounded to 15 min)

@@ -151,7 +151,7 @@ export default function BookingsPage() {
     } else {
       const remaining = coinsNeeded - coinBalance;
       const ratio = coinsRate > 0 ? moneyRate / coinsRate : 0;
-      const moneyUzs = Math.round(remaining * ratio * 12800);
+      const moneyUzs = Math.round(remaining * ratio);
       setCostPreview(
         `${Math.round(durMin)} min: ${Math.round(coinBalance)} coins + ${moneyUzs.toLocaleString()} ${getCurrencySymbol()}`
       );
