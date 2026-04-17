@@ -48,19 +48,36 @@ const STATUS_PILL: Record<UnitStatus, string> = {
 function formatRate(r: Resource): string {
   if (["meeting_room", "zoom_cabin", "event_zone"].includes(r.resource_type)) {
     const c = r.rate_coins_per_hour ?? 0;
-    const m = r.rate_money_per_hour ?? 0;
-    return `${c} coins / $${m} per hr`;
+    return c > 0 ? `${c.toLocaleString()} coins/ч` : "—";
   }
   if (r.resource_type === "amenity") {
-    return r.rate_per_hour ? `$${r.rate_per_hour} / hr` : "—";
+    return r.rate_per_hour ? `${formatMoney(r.rate_per_hour)}/ч` : "—";
   }
-  if (r.effective_monthly_rate != null) {
-    return `${formatMoney(r.effective_monthly_rate)} / month`;
-  }
+  if (r.effective_monthly_rate != null) return `${formatMoney(r.effective_monthly_rate)}/мес`;
   if (r.monthly_rate == null) return "—";
-  const period = r.rate_period && r.rate_period !== "month" ? r.rate_period : "month";
-  return `$${r.monthly_rate.toLocaleString()} / ${period}`;
+  return `${formatMoney(r.monthly_rate)}/мес`;
 }
+
+const TYPE_LABEL: Record<string, string> = {
+  office: "Офис", meeting_room: "Переговорная", open_space: "Open Space",
+  hot_desk: "Hot Desk", zoom_cabin: "Zoom Cabin", event_zone: "Event Zone", amenity: "Amenity",
+};
+
+const TYPE_ICON: Record<string, string> = {
+  office: "🏢", meeting_room: "🤝", open_space: "🪑", hot_desk: "💺",
+  zoom_cabin: "📹", event_zone: "🎪", amenity: "☕",
+};
+
+const TYPE_BG: Record<string, string> = {
+  office: "bg-[#012169]", meeting_room: "bg-purple-600", open_space: "bg-emerald-600",
+  hot_desk: "bg-cyan-600", zoom_cabin: "bg-violet-600", event_zone: "bg-red-600", amenity: "bg-gray-500",
+};
+
+const STATUS_DOT: Record<string, string> = { occupied: "bg-green-500", vacant: "bg-red-500", reserved: "bg-yellow-500" };
+const STATUS_TEXT: Record<string, string> = { occupied: "text-green-700 bg-green-50", vacant: "text-red-700 bg-red-50", reserved: "text-yellow-700 bg-yellow-50" };
+const STATUS_LABEL: Record<string, string> = { occupied: "Занят", vacant: "Вакант", reserved: "Резерв" };
+
+type ViewMode = "grid" | "list" | "table";
 
 function computePlanRate(plan: Plan, seats: number | null): number {
   if (plan.billing_mode === "per_seat") {
@@ -87,6 +104,10 @@ export default function ResourcesPage() {
   const [selected, setSelected] = useState<Resource | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [search, setSearch] = useState("");
+  const [sortField, setSortField] = useState<string>("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   // Edit state in the PARENT — the edit modal is rendered as a top-level portal
   const [editingResource, setEditingResource] = useState<Resource | null>(null);
@@ -119,8 +140,29 @@ export default function ResourcesPage() {
     let list = activeTab === "all" ? resources : resources.filter((r) => r.resource_type === activeTab);
     if (floorFilter === "none") list = list.filter((r) => !r.floor_id);
     else if (floorFilter !== "all") list = list.filter((r) => r.floor_id === floorFilter);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((r) => r.name.toLowerCase().includes(q) || (r.tenant_name || "").toLowerCase().includes(q));
+    }
     return list;
-  }, [resources, activeTab, floorFilter]);
+  }, [resources, activeTab, floorFilter, search]);
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      const av = (a as unknown as Record<string, unknown>)[sortField] ?? "";
+      const bv = (b as unknown as Record<string, unknown>)[sortField] ?? "";
+      const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [filtered, sortField, sortDir]);
+
+  const handleSort = (field: string) => {
+    if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortField(field); setSortDir("asc"); }
+  };
+  const sortIcon = (field: string) => sortField !== field ? "↕" : sortDir === "asc" ? "↑" : "↓";
 
   return (
     <div className="p-6">
@@ -167,21 +209,40 @@ export default function ResourcesPage() {
         })}
       </div>
 
-      {/* Floor filter pills */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 12, flexWrap: "wrap" }}>
-        {[{ id: "all" as const, label: "All Floors" }, ...floors.map((f) => ({ id: f.id, label: f.name || `Floor ${f.number}` })), { id: "none" as const, label: "Unassigned" }].map((item) => (
-          <button
-            key={String(item.id)}
-            onClick={() => setFloorFilter(item.id as number | "all" | "none")}
-            style={{
-              padding: "4px 12px", borderRadius: 999, fontSize: 12, border: "none", cursor: "pointer",
-              background: floorFilter === item.id ? "#003DA5" : "#f3f4f6",
-              color: floorFilter === item.id ? "white" : "#374151",
-            }}
-          >
-            {item.label}
-          </button>
-        ))}
+      {/* Search + floor filter + view toggle */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <input
+          type="text"
+          placeholder="Поиск по названию или арендатору..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm w-64"
+        />
+        <select
+          value={String(floorFilter)}
+          onChange={(e) => { const v = e.target.value; setFloorFilter(v === "all" || v === "none" ? v : Number(v)); }}
+          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm bg-white"
+        >
+          <option value="all">All Floors</option>
+          {floors.map((f) => <option key={f.id} value={f.id}>{f.name || `Floor ${f.number}`}</option>)}
+          <option value="none">Unassigned</option>
+        </select>
+        <div className="ml-auto flex gap-1 bg-gray-100 rounded-lg p-0.5">
+          {(["grid", "list", "table"] as const).map((m) => (
+            <button key={m} onClick={() => setViewMode(m)}
+              className={`px-3 py-1 text-xs font-medium rounded-md ${viewMode === m ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>
+              {m === "grid" ? "▦" : m === "list" ? "☰" : "▤"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Stats bar */}
+      <div className="flex gap-6 text-xs text-gray-500 mb-3">
+        <span>Всего: <strong className="text-gray-700">{filtered.length}</strong></span>
+        <span>Occupied: <strong className="text-green-600">{filtered.filter((r) => r.status === "occupied").length}</strong></span>
+        <span>Vacant: <strong className="text-red-600">{filtered.filter((r) => r.status === "vacant").length}</strong></span>
+        <span>Площадь: <strong className="text-gray-700">{filtered.reduce((s, r) => s + (r.area_m2 || 0), 0)} m²</strong></span>
       </div>
 
       {error && (
@@ -193,59 +254,118 @@ export default function ResourcesPage() {
         </div>
       )}
 
-      {/* Grid */}
-      {filtered.length === 0 ? (
+      {/* Resources views */}
+      {sorted.length === 0 ? (
         <div className="text-sm text-gray-500 p-8 border border-dashed border-gray-300 rounded-md">
           No resources in this category yet.
         </div>
-      ) : (
+      ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((r) => {
+          {sorted.map((r) => {
             const floor = floors.find((f) => f.id === r.floor_id);
             return (
-              <button
-                key={r.id}
-                onClick={() => setSelected(r)}
-                className="text-left bg-white border border-gray-200 rounded-lg p-4 hover:border-cbc-blue hover:shadow-sm transition"
-              >
+              <button key={r.id} onClick={() => setSelected(r)}
+                className="text-left bg-white border border-gray-200 rounded-lg p-4 hover:border-[#418FDE] hover:shadow-sm transition">
                 <div className="flex items-start justify-between mb-2">
-                  <span
-                    className={`text-[10px] uppercase font-semibold px-2 py-0.5 rounded ${
-                      TYPE_BADGE[r.resource_type]
-                    }`}
-                  >
-                    {r.resource_type.replace("_", " ")}
+                  <span className={`text-[10px] uppercase font-semibold px-2 py-0.5 rounded ${TYPE_BADGE[r.resource_type]}`}>
+                    {TYPE_LABEL[r.resource_type] || r.resource_type}
                   </span>
-                  <span
-                    className={`text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full border ${
-                      STATUS_PILL[r.status]
-                    }`}
-                  >
-                    {r.status}
+                  <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_TEXT[r.status] || ""}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[r.status] || ""}`} />
+                    {STATUS_LABEL[r.status] || r.status}
                   </span>
                 </div>
-                <div className="font-semibold text-gray-900 truncate">
-                  {r.name}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {floor ? floor.name ?? `Floor ${floor.number}` : "Unassigned"}
-                </div>
-                <div className="text-sm text-gray-700 mt-2">
-                  {formatRate(r)}
-                </div>
-                {r.plan && (
-                  <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-semibold">
-                    {r.plan.name}
-                  </span>
-                )}
-                {r.resident_discount_pct > 0 && (
-                  <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-800 font-semibold">
-                    -{r.resident_discount_pct}% resident
-                  </span>
-                )}
+                <div className="font-semibold text-[#0A1730] truncate">{r.name}</div>
+                <div className="text-xs text-gray-500 mt-1">{floor ? floor.name ?? `Floor ${floor.number}` : "Unassigned"}</div>
+                <div className="text-sm text-gray-700 mt-2">{formatRate(r)}</div>
+                {r.tenant_name && <div className="text-xs text-gray-500 mt-1">{r.tenant_name}</div>}
+                {r.plan && <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-semibold">{r.plan.name}</span>}
               </button>
             );
           })}
+        </div>
+      ) : viewMode === "list" ? (
+        <div className="space-y-2">
+          {sorted.map((r) => {
+            const floor = floors.find((f) => f.id === r.floor_id);
+            return (
+              <div key={r.id} onClick={() => setSelected(r)}
+                className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-100 hover:border-[#418FDE] hover:shadow-sm transition cursor-pointer">
+                <div className="flex items-center gap-4 min-w-0 flex-1">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-bold ${TYPE_BG[r.resource_type] || "bg-gray-500"}`}>
+                    {TYPE_ICON[r.resource_type] || "?"}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-medium text-[#0A1730] truncate">{r.name}</div>
+                    <div className="text-xs text-gray-500">{floor?.name || "—"} · {formatRate(r)}</div>
+                  </div>
+                </div>
+                <div className="hidden md:flex items-center gap-6 text-sm text-gray-600 mr-4">
+                  <span>{r.area_m2 ? `${r.area_m2} m²` : "—"}</span>
+                  <span>{r.seats ? `${r.seats} мест` : "—"}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_TEXT[r.status] || ""}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[r.status] || ""}`} />
+                    {STATUS_LABEL[r.status] || r.status}
+                  </span>
+                  <span className="text-sm text-gray-700 w-28 truncate">{r.tenant_name || "—"}</span>
+                  {isAdmin && (
+                    <button onClick={(e) => { e.stopPropagation(); setEditingResource(r); }} className="text-gray-400 hover:text-[#1F69FF] text-sm">✏️</button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="overflow-x-auto bg-white rounded-lg border border-gray-200">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-[#F0F5FB] text-left text-xs font-medium text-gray-600 uppercase">
+                <th className="px-4 py-3 cursor-pointer hover:text-[#1F69FF]" onClick={() => handleSort("name")}>Название {sortIcon("name")}</th>
+                <th className="px-4 py-3 cursor-pointer hover:text-[#1F69FF]" onClick={() => handleSort("resource_type")}>Тип {sortIcon("resource_type")}</th>
+                <th className="px-4 py-3">Этаж</th>
+                <th className="px-4 py-3 cursor-pointer hover:text-[#1F69FF]" onClick={() => handleSort("area_m2")}>Площадь {sortIcon("area_m2")}</th>
+                <th className="px-4 py-3">Мест</th>
+                <th className="px-4 py-3 cursor-pointer hover:text-[#1F69FF]" onClick={() => handleSort("status")}>Статус {sortIcon("status")}</th>
+                <th className="px-4 py-3">Арендатор</th>
+                <th className="px-4 py-3">Тариф</th>
+                <th className="px-4 py-3">План</th>
+                {isAdmin && <th className="px-4 py-3">Действия</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {sorted.map((r) => {
+                const floor = floors.find((f) => f.id === r.floor_id);
+                return (
+                  <tr key={r.id} className="hover:bg-[#F0F5FB] cursor-pointer" onClick={() => setSelected(r)}>
+                    <td className="px-4 py-3 font-medium text-[#0A1730]">{r.name}</td>
+                    <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded ${TYPE_BADGE[r.resource_type]}`}>{TYPE_LABEL[r.resource_type] || r.resource_type}</span></td>
+                    <td className="px-4 py-3 text-gray-600">{floor?.name || "—"}</td>
+                    <td className="px-4 py-3 text-gray-600">{r.area_m2 || "—"}</td>
+                    <td className="px-4 py-3 text-gray-600">{r.seats || "—"}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1 text-xs ${STATUS_TEXT[r.status] || ""} px-2 py-0.5 rounded-full`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[r.status] || ""}`} />
+                        {STATUS_LABEL[r.status] || r.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">{r.tenant_name || "—"}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatRate(r)}</td>
+                    <td className="px-4 py-3 text-gray-500">{r.plan?.name || "—"}</td>
+                    {isAdmin && (
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2">
+                          <button onClick={(e) => { e.stopPropagation(); setEditingResource(r); }} className="text-[#1F69FF] hover:underline text-xs">Edit</button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
