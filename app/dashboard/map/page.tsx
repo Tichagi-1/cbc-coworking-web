@@ -40,10 +40,7 @@ type Mode = "view" | "edit" | "history";
 
 export default function MapPage() {
   const { propertyId: BUILDING_ID } = useProperty();
-  const [requestedFloor] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    return new URLSearchParams(window.location.search).get("floor");
-  });
+  const initialFloorApplied = useRef(false);
   const [role, setRole] = useState<UserRole | undefined>(undefined);
   useEffect(() => {
     setRole(Cookies.get(ROLE_COOKIE) as UserRole | undefined);
@@ -142,22 +139,35 @@ export default function MapPage() {
         setFloors(res.data);
         if (selectFloorId !== undefined) {
           setFloorId(selectFloorId);
-        } else if (requestedFloor && res.data.some((f) => String(f.id) === requestedFloor)) {
-          setFloorId(Number(requestedFloor));
-        } else if (res.data.length > 0 && floorId == null) {
-          setFloorId(res.data[0].id);
         }
       } catch (e) {
         setError((e as Error)?.message || "Failed to load floors");
       }
     },
-    [floorId, BUILDING_ID, requestedFloor]
+    [BUILDING_ID]
   );
 
   useEffect(() => {
     loadFloors();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [BUILDING_ID]);
+  }, [loadFloors]);
+
+  // Apply ?floor= param AFTER floors load (client-only, runs once)
+  useEffect(() => {
+    if (floors.length === 0 || initialFloorApplied.current) return;
+    initialFloorApplied.current = true;
+
+    const param = new URLSearchParams(window.location.search).get("floor");
+    if (param) {
+      const target = floors.find((f) => String(f.id) === param);
+      if (target) {
+        setFloorId(target.id);
+        return;
+      }
+    }
+    if (floorId == null) {
+      setFloorId(floors[0].id);
+    }
+  }, [floors, floorId]);
 
   // ── Floor data: zones (live) or snapshot (history) ─────────────────────
   const loadFloorData = useCallback(
