@@ -104,7 +104,7 @@ export default function ResourcesPage() {
   const [selected, setSelected] = useState<Resource | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<string>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
