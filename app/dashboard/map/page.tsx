@@ -40,6 +40,10 @@ type Mode = "view" | "edit" | "history";
 
 export default function MapPage() {
   const { propertyId: BUILDING_ID } = useProperty();
+  const [requestedFloor] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("floor");
+  });
   const [role, setRole] = useState<UserRole | undefined>(undefined);
   useEffect(() => {
     setRole(Cookies.get(ROLE_COOKIE) as UserRole | undefined);
@@ -138,6 +142,8 @@ export default function MapPage() {
         setFloors(res.data);
         if (selectFloorId !== undefined) {
           setFloorId(selectFloorId);
+        } else if (requestedFloor && res.data.some((f) => String(f.id) === requestedFloor)) {
+          setFloorId(Number(requestedFloor));
         } else if (res.data.length > 0 && floorId == null) {
           setFloorId(res.data[0].id);
         }
@@ -145,7 +151,7 @@ export default function MapPage() {
         setError((e as Error)?.message || "Failed to load floors");
       }
     },
-    [floorId, BUILDING_ID]
+    [floorId, BUILDING_ID, requestedFloor]
   );
 
   useEffect(() => {
@@ -570,7 +576,11 @@ export default function MapPage() {
             <div className="flex items-center gap-1">
               <select
                 value={floorId ?? ""}
-                onChange={(e) => setFloorId(Number(e.target.value) || null)}
+                onChange={(e) => {
+                  const id = Number(e.target.value) || null;
+                  setFloorId(id);
+                  if (id) window.history.replaceState(null, "", `/dashboard/map?floor=${id}`);
+                }}
                 className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white min-w-[180px]"
               >
                 {floors.length === 0 && <option value="">— none —</option>}
