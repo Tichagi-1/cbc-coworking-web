@@ -38,9 +38,27 @@ const FloorCanvas = dynamic(() => import("@/components/FloorCanvas"), {
 
 type Mode = "view" | "edit" | "history";
 
+function buildExportHeader(
+  building: Building | null,
+  floor: Floor | undefined,
+): string {
+  const propertyName = building?.name?.trim() || building?.address?.trim() || "";
+  const floorLabel = floor?.name?.trim() || (floor ? `Floor ${floor.number}` : "");
+  const now = new Date();
+  const datePart = new Intl.DateTimeFormat("en-GB", {
+    day: "numeric", month: "short", year: "numeric",
+  }).format(now);
+  const timePart = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).format(now);
+  const dateTime = `${datePart} ${timePart}`;
+  return [propertyName, floorLabel, dateTime].filter(Boolean).join(" · ");
+}
+
 async function composePlanWithLegend(
   planDataURL: string,
   zoneColors: ZoneColorConfig | undefined,
+  headerText: string,
 ): Promise<string> {
   await document.fonts.ready;
 
@@ -55,21 +73,38 @@ async function composePlanWithLegend(
   const planW = planImg.naturalWidth;
   const planH = planImg.naturalHeight;
   const legendW = 220 * DPI;
+  const headerH = 48 * DPI;
 
   const canvas = document.createElement("canvas");
   canvas.width = planW + legendW;
-  canvas.height = planH;
+  canvas.height = planH + headerH;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas 2D context unavailable");
 
-  ctx.drawImage(planImg, 0, 0);
-
-  ctx.fillStyle = "#FFFFFF";
-  ctx.fillRect(planW, 0, legendW, planH);
-  ctx.fillStyle = "#E1E7EF";
-  ctx.fillRect(planW, 0, DPI, planH);
-
   const fontFamily = getComputedStyle(document.body).fontFamily || "sans-serif";
+
+  // Plan (shifted down by header height)
+  ctx.drawImage(planImg, 0, headerH);
+
+  // Legend column background + left divider (spans plan rows only)
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(planW, headerH, legendW, planH);
+  ctx.fillStyle = "#E1E7EF";
+  ctx.fillRect(planW, headerH, DPI, planH);
+
+  // Header strip: full-width white band + 1px bottom divider
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, canvas.width, headerH);
+  ctx.fillStyle = "#E1E7EF";
+  ctx.fillRect(0, headerH - DPI, canvas.width, DPI);
+
+  // Header text: Roboto Medium 16px, gray-800, left-padded 24px, vertically centered
+  const headerPadX = 24 * DPI;
+  const headerSize = 16 * DPI;
+  ctx.fillStyle = "#1F2839";
+  ctx.font = `500 ${headerSize}px ${fontFamily}`;
+  ctx.textBaseline = "middle";
+  ctx.fillText(headerText, headerPadX, headerH / 2);
 
   // Plan colors are encoded by status (for leasable zones) and by
   // dedicated color per special-zone type — NOT by resource type. The
@@ -97,15 +132,16 @@ async function composePlanWithLegend(
   const rowSpacing = 20 * DPI;
   const labelSize = 14 * DPI;
 
+  // Legend title — Y offset by headerH so it sits inside the legend column
   ctx.fillStyle = "#1F2839";
   ctx.font = `500 ${titleSize}px ${fontFamily}`;
   ctx.textBaseline = "top";
-  ctx.fillText("Legend", planW + pad, titleTopPad);
+  ctx.fillText("Legend", planW + pad, headerH + titleTopPad);
 
   ctx.font = `400 ${labelSize}px ${fontFamily}`;
   ctx.textBaseline = "middle";
 
-  let rowY = titleTopPad + titleSize + afterTitleGap;
+  let rowY = headerH + titleTopPad + titleSize + afterTitleGap;
   for (const row of rows) {
     const x = planW + pad;
     ctx.fillStyle = row.color;
@@ -115,6 +151,42 @@ async function composePlanWithLegend(
     ctx.fillStyle = "#363F54";
     ctx.fillText(row.label, x + swatch + gap, rowY + swatch / 2);
     rowY += swatch + rowSpacing;
+  }
+
+  // Footer note — clarifies that status rows apply to all leasable types
+  const noteTopMargin = 16 * DPI;
+  const noteSize = 11 * DPI;
+  const noteLineHeight = 1.4;
+  const noteText = "Status colors apply to office, open space, and hot desk zones.";
+  const noteX = planW + pad;
+  const noteMaxWidth = legendW - pad * 2;
+
+  ctx.fillStyle = "#68738C";
+  ctx.font = `400 ${noteSize}px ${fontFamily}`;
+  ctx.textBaseline = "top";
+
+  // Word-wrap using ctx.measureText (font must already be set)
+  const words = noteText.split(" ");
+  const noteLines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (ctx.measureText(candidate).width <= noteMaxWidth) {
+      current = candidate;
+    } else {
+      if (current) noteLines.push(current);
+      current = word;
+    }
+  }
+  if (current) noteLines.push(current);
+
+  // rowY after the loop = top of a hypothetical 7th row = (last row top) +
+  // swatch + rowSpacing. Back out rowSpacing to get the BOTTOM of row 6.
+  const lastRowBottom = rowY - rowSpacing;
+  let noteY = lastRowBottom + noteTopMargin;
+  for (const line of noteLines) {
+    ctx.fillText(line, noteX, noteY);
+    noteY += noteSize * noteLineHeight;
   }
 
   return canvas.toDataURL("image/png");
@@ -804,7 +876,9 @@ export default function MapPage() {
               const dataURL = floorCanvasRef.current?.exportPNG();
               if (!dataURL) { alert("No floor plan loaded"); return; }
               try {
-                const finalURL = await composePlanWithLegend(dataURL, zoneColors);
+                const currentFloor = floors.find((f) => f.id === floorId);
+                const headerText = buildExportHeader(building, currentFloor);
+                const finalURL = await composePlanWithLegend(dataURL, zoneColors, headerText);
                 const link = document.createElement("a");
                 link.download = `floor-plan-${floorId}-${dayjs().format("YYYY-MM-DD")}.png`;
                 link.href = finalURL;
