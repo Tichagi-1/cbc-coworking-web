@@ -131,7 +131,7 @@ export default function TenantsPage() {
               {tenants.map((t) => (
                 <tr key={t.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setCardTenant(t)}>
                   <td className="px-4 py-3">
-                    <div style={{ fontWeight: 500, color: "#111827" }}>{t.company_name}</div>
+                    <div style={{ fontWeight: 500, color: "var(--color-gray-900)" }}>{t.company_name}</div>
                     <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 999, background: t.tenant_type === "individual" ? "#fef3c7" : "#eff6ff", color: t.tenant_type === "individual" ? "#92400e" : "#1e40af", fontWeight: 600 }}>
                       {t.tenant_type === "individual" ? "👤 Individual" : "🏢 Company"}
                     </span>
@@ -185,25 +185,25 @@ export default function TenantsPage() {
                       <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
                         <button
                           onClick={() => setEditTenant(t)}
-                          style={{ padding: "4px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500 }}
+                          style={{ padding: "4px 10px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500 }}
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => setCoinModalTenant(t)}
-                          style={{ padding: "4px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500 }}
+                          style={{ padding: "4px 10px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500 }}
                         >
                           Coins
                         </button>
                         <button
                           onClick={() => setCashModalTenant(t)}
-                          style={{ padding: "4px 10px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500, color: "#16a34a" }}
+                          style={{ padding: "4px 10px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500, color: "#16a34a" }}
                         >
                           Оплата
                         </button>
                         <a
                           href={`/dashboard/tenants/${t.id}/members`}
-                          style={{padding:'4px 10px', border:'1px solid #d1d5db', borderRadius:6, background:'white', cursor:'pointer', fontSize:12, fontWeight:500, textDecoration:'none', color:'#374151'}}
+                          style={{padding:'4px 10px', border:'1px solid var(--color-gray-300)', borderRadius:6, background:'white', cursor:'pointer', fontSize:12, fontWeight:500, textDecoration:'none', color:'var(--color-gray-700)'}}
                         >
                           Members
                         </a>
@@ -274,17 +274,17 @@ export default function TenantsPage() {
           onClick={(e) => { if (e.target === e.currentTarget) setDeleteTarget(null); }}
         >
           <div style={{ background: "white", borderRadius: 12, padding: 24, maxWidth: 420, width: "100%" }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 8 }}>Delete tenant?</h3>
-            <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 6 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--color-gray-900)", marginBottom: 8 }}>Delete tenant?</h3>
+            <p style={{ fontSize: 14, color: "var(--color-gray-500)", marginBottom: 6 }}>
               <strong>{deleteTarget.company_name}</strong>
             </p>
-            <p style={{ fontSize: 13, color: "#9ca3af", marginBottom: 20 }}>
+            <p style={{ fontSize: 13, color: "var(--color-gray-400)", marginBottom: 20 }}>
               All linked resources will be unassigned. Booking history will be preserved.
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
               <button
                 onClick={() => setDeleteTarget(null)}
-                style={{ padding: "8px 18px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", fontSize: 14, cursor: "pointer" }}
+                style={{ padding: "8px 18px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", fontSize: 14, cursor: "pointer" }}
               >
                 Cancel
               </button>
@@ -369,22 +369,22 @@ function TenantCard({
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 20 }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#111827" }}>{tenant.company_name}</h2>
-            <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "var(--color-gray-900)" }}>{tenant.company_name}</h2>
+            <div style={{ fontSize: 13, color: "var(--color-gray-500)", marginTop: 4 }}>
               {tenant.contact_name && <span>{tenant.contact_name}</span>}
               {tenant.contact_phone && <span> · {tenant.contact_phone}</span>}
             </div>
           </div>
-          <button onClick={onClose} style={{ border: "none", background: "none", fontSize: 22, cursor: "pointer", color: "#9ca3af" }}>×</button>
+          <button onClick={onClose} style={{ border: "none", background: "none", fontSize: 22, cursor: "pointer", color: "var(--color-gray-400)" }}>×</button>
         </div>
 
         {/* Units */}
         {tenant.units && tenant.units.length > 0 && (
           <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 8 }}>Юниты</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-gray-700)", marginBottom: 8 }}>Юниты</div>
             <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>
+                <tr style={{ color: "var(--color-gray-500)", borderBottom: "1px solid var(--color-gray-200)" }}>
                   <th style={{ padding: "4px 6px", textAlign: "left", fontWeight: 500 }}>Юнит</th>
                   <th style={{ padding: "4px 6px", textAlign: "left", fontWeight: 500 }}>Тип</th>
                   <th style={{ padding: "4px 6px", textAlign: "left", fontWeight: 500 }}>Этаж</th>
@@ -394,15 +394,15 @@ function TenantCard({
               </thead>
               <tbody>
                 {tenant.units.map((u: TenantUnitSummary) => (
-                  <tr key={u.resource_id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <tr key={u.resource_id} style={{ borderBottom: "1px solid var(--color-gray-100)" }}>
                     <td style={{ padding: "4px 6px", fontWeight: 500 }}>{u.name}</td>
-                    <td style={{ padding: "4px 6px", color: "#6b7280" }}>{u.type}</td>
-                    <td style={{ padding: "4px 6px", color: "#6b7280" }}>{u.floor_name || "—"}</td>
-                    <td style={{ padding: "4px 6px", textAlign: "right", color: "#6b7280" }}>{u.plan_name || "—"}</td>
+                    <td style={{ padding: "4px 6px", color: "var(--color-gray-500)" }}>{u.type}</td>
+                    <td style={{ padding: "4px 6px", color: "var(--color-gray-500)" }}>{u.floor_name || "—"}</td>
+                    <td style={{ padding: "4px 6px", textAlign: "right", color: "var(--color-gray-500)" }}>{u.plan_name || "—"}</td>
                     <td style={{ padding: "4px 6px", textAlign: "right" }}>{formatMoney(u.monthly_rate)}</td>
                   </tr>
                 ))}
-                <tr style={{ borderTop: "2px solid #d1d5db", background: "#f9fafb" }}>
+                <tr style={{ borderTop: "2px solid var(--color-gray-300)", background: "var(--color-gray-50)" }}>
                   <td colSpan={4} style={{ padding: "5px 6px", fontWeight: 700 }}>Итого</td>
                   <td style={{ padding: "5px 6px", textAlign: "right", fontWeight: 700 }}>{formatMoney(tenant.total_monthly_rate)}</td>
                 </tr>
@@ -414,15 +414,15 @@ function TenantCard({
         {/* Financials */}
         <div style={{ marginBottom: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
           <div style={{ background: "#f0fdf4", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
-            <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>Начисление/мес</div>
+            <div style={{ fontSize: 10, color: "var(--color-gray-500)", marginBottom: 2 }}>Начисление/мес</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: "#059669" }}>{Math.round(tenant.monthly_coin_allowance).toLocaleString()}</div>
           </div>
           <div style={{ background: "#fef3c7", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
-            <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>Баланс монет</div>
+            <div style={{ fontSize: 10, color: "var(--color-gray-500)", marginBottom: 2 }}>Баланс монет</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: balanceColor(tenant.coin_balance) }}>{Math.round(tenant.coin_balance).toLocaleString()}</div>
           </div>
           <div style={{ background: (tenant.cash_balance || 0) > 0 ? "#fee2e2" : "#f0fdf4", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
-            <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 2 }}>Задолженность</div>
+            <div style={{ fontSize: 10, color: "var(--color-gray-500)", marginBottom: 2 }}>Задолженность</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: (tenant.cash_balance || 0) > 0 ? "#DC2626" : "#059669" }}>{(tenant.cash_balance || 0) !== 0 ? formatMoney(tenant.cash_balance || 0) : "—"}</div>
           </div>
         </div>
@@ -430,10 +430,10 @@ function TenantCard({
         {/* Actions */}
         {isAdmin && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
-            <button onClick={onEdit} style={{ padding: "6px 14px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500 }}>Редактировать</button>
-            <button onClick={onCoins} style={{ padding: "6px 14px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500 }}>Монеты +/−</button>
-            <button onClick={onCash} style={{ padding: "6px 14px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500, color: "#16a34a" }}>Записать оплату</button>
-            <a href={`/dashboard/tenants/${tenant.id}/members`} style={{ padding: "6px 14px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500, textDecoration: "none", color: "#374151" }}>Members</a>
+            <button onClick={onEdit} style={{ padding: "6px 14px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500 }}>Редактировать</button>
+            <button onClick={onCoins} style={{ padding: "6px 14px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500 }}>Монеты +/−</button>
+            <button onClick={onCash} style={{ padding: "6px 14px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500, color: "#16a34a" }}>Записать оплату</button>
+            <a href={`/dashboard/tenants/${tenant.id}/members`} style={{ padding: "6px 14px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500, textDecoration: "none", color: "var(--color-gray-700)" }}>Members</a>
             <button onClick={onDelete} style={{ padding: "6px 14px", border: "1px solid #fecaca", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 12, fontWeight: 500, color: "#dc2626" }}>Удалить</button>
           </div>
         )}
@@ -443,24 +443,24 @@ function TenantCard({
           <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
             {(["all", "coins", "cash"] as const).map((tab) => (
               <button key={tab} onClick={() => setTxTab(tab)}
-                style={{ padding: "4px 12px", borderRadius: 6, border: "none", fontSize: 12, fontWeight: 500, cursor: "pointer", background: txTab === tab ? "#003DA5" : "#f3f4f6", color: txTab === tab ? "white" : "#6b7280" }}>
+                style={{ padding: "4px 12px", borderRadius: 6, border: "none", fontSize: 12, fontWeight: 500, cursor: "pointer", background: txTab === tab ? "#003DA5" : "var(--color-gray-100)", color: txTab === tab ? "white" : "var(--color-gray-500)" }}>
                 {tab === "all" ? "Все" : tab === "coins" ? "Монеты" : "Оплаты"}
               </button>
             ))}
           </div>
           {filtered.length === 0 ? (
-            <div style={{ fontSize: 13, color: "#9ca3af", padding: 12 }}>Нет операций</div>
+            <div style={{ fontSize: 13, color: "var(--color-gray-400)", padding: 12 }}>Нет операций</div>
           ) : (
             <table style={{ width: "100%", fontSize: 11, borderCollapse: "collapse" }}>
               <tbody>
                 {filtered.slice(0, 20).map((tx, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "5px 4px", color: "#6b7280", whiteSpace: "nowrap" }}>{tx.date ? dayjs(tx.date).format("DD.MM HH:mm") : "—"}</td>
+                  <tr key={i} style={{ borderBottom: "1px solid var(--color-gray-100)" }}>
+                    <td style={{ padding: "5px 4px", color: "var(--color-gray-500)", whiteSpace: "nowrap" }}>{tx.date ? dayjs(tx.date).format("DD.MM HH:mm") : "—"}</td>
                     <td style={{ padding: "5px 4px", fontWeight: 600, color: tx.delta >= 0 ? "#059669" : "#DC2626", textAlign: "right", whiteSpace: "nowrap" }}>
                       {tx.delta >= 0 ? "+" : ""}{Math.round(tx.delta).toLocaleString()}
                     </td>
-                    <td style={{ padding: "5px 4px", color: "#374151" }}>{tx.label}</td>
-                    <td style={{ padding: "5px 4px", color: "#9ca3af", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.note || ""}</td>
+                    <td style={{ padding: "5px 4px", color: "var(--color-gray-700)" }}>{tx.label}</td>
+                    <td style={{ padding: "5px 4px", color: "var(--color-gray-400)", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tx.note || ""}</td>
                   </tr>
                 ))}
               </tbody>
@@ -469,7 +469,7 @@ function TenantCard({
         </div>
 
         {/* Info */}
-        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #e5e7eb", fontSize: 12, color: "#6b7280", lineHeight: 1.8 }}>
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--color-gray-200)", fontSize: 12, color: "var(--color-gray-500)", lineHeight: 1.8 }}>
           <div><strong>Email:</strong> user #{tenant.user_id}</div>
           <div><strong>Резидент:</strong> {tenant.is_resident ? "Да" : "Нет"}</div>
           {tenant.notes && <div><strong>Примечание:</strong> {tenant.notes}</div>}
@@ -559,7 +559,7 @@ function CoinModal({
   const projectedCoins = summary?.projected_coins ?? Math.round(tenant.monthly_coin_allowance || 0);
   const inputStyle: React.CSSProperties = {
     display: "block", width: "100%", marginTop: 4, padding: "8px 10px",
-    border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
+    border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
   };
 
   return (
@@ -590,10 +590,10 @@ function CoinModal({
         {/* Per-unit breakdown */}
         {tenant.units && tenant.units.length > 0 && (
           <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#374151", marginBottom: 8 }}>Breakdown by unit</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-gray-700)", marginBottom: 8 }}>Breakdown by unit</div>
             <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ color: "#6b7280", textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
+                <tr style={{ color: "var(--color-gray-500)", textAlign: "left", borderBottom: "1px solid var(--color-gray-200)" }}>
                   <th style={{ padding: "4px 6px", fontWeight: 500 }}>Unit</th>
                   <th style={{ padding: "4px 6px", fontWeight: 500 }}>Plan</th>
                   <th style={{ padding: "4px 6px", fontWeight: 500, textAlign: "right" }}>Rate/mo</th>
@@ -603,17 +603,17 @@ function CoinModal({
               </thead>
               <tbody>
                 {tenant.units.map((u: TenantUnitSummary) => (
-                  <tr key={u.resource_id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "4px 6px", color: "#374151", fontWeight: 500 }}>{u.name}</td>
-                    <td style={{ padding: "4px 6px", color: "#6b7280" }}>{u.plan_name || "—"}</td>
-                    <td style={{ padding: "4px 6px", textAlign: "right", color: "#374151" }}>{formatMoney(u.monthly_rate)}</td>
-                    <td style={{ padding: "4px 6px", textAlign: "right", color: "#6b7280" }}>{u.coin_pct}%</td>
+                  <tr key={u.resource_id} style={{ borderBottom: "1px solid var(--color-gray-100)" }}>
+                    <td style={{ padding: "4px 6px", color: "var(--color-gray-700)", fontWeight: 500 }}>{u.name}</td>
+                    <td style={{ padding: "4px 6px", color: "var(--color-gray-500)" }}>{u.plan_name || "—"}</td>
+                    <td style={{ padding: "4px 6px", textAlign: "right", color: "var(--color-gray-700)" }}>{formatMoney(u.monthly_rate)}</td>
+                    <td style={{ padding: "4px 6px", textAlign: "right", color: "var(--color-gray-500)" }}>{u.coin_pct}%</td>
                     <td style={{ padding: "4px 6px", textAlign: "right", color: "#003DA5", fontWeight: 600 }}>{Math.round(u.coin_allowance).toLocaleString()}</td>
                   </tr>
                 ))}
-                <tr style={{ borderTop: "2px solid #d1d5db", background: "#f9fafb" }}>
-                  <td colSpan={2} style={{ padding: "6px", fontWeight: 700, color: "#111827" }}>Total</td>
-                  <td style={{ padding: "6px", textAlign: "right", fontWeight: 700, color: "#111827" }}>{formatMoney(tenant.total_monthly_rate)}</td>
+                <tr style={{ borderTop: "2px solid var(--color-gray-300)", background: "var(--color-gray-50)" }}>
+                  <td colSpan={2} style={{ padding: "6px", fontWeight: 700, color: "var(--color-gray-900)" }}>Total</td>
+                  <td style={{ padding: "6px", textAlign: "right", fontWeight: 700, color: "var(--color-gray-900)" }}>{formatMoney(tenant.total_monthly_rate)}</td>
                   <td />
                   <td style={{ padding: "6px", textAlign: "right", fontWeight: 700, color: "#003DA5" }}>{Math.round(tenant.monthly_coin_allowance).toLocaleString()}</td>
                 </tr>
@@ -628,17 +628,17 @@ function CoinModal({
 
         {/* ACTION 1 — Adjust */}
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#374151", marginBottom: 8 }}>Add / Deduct Coins</div>
-          <label style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-gray-700)", marginBottom: 8 }}>Add / Deduct Coins</div>
+          <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)" }}>
             Amount (+ to add, − to deduct)
             <input type="number" value={adjustAmount || ""} onChange={(e) => setAdjustAmount(+e.target.value)} placeholder="e.g. 500 or -200" style={inputStyle} />
           </label>
-          <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", marginTop: 8, display: "block" }}>
+          <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", marginTop: 8, display: "block" }}>
             Reason (optional)
             <input type="text" value={adjustNote} onChange={(e) => setAdjustNote(e.target.value)} placeholder="Manual adjustment" style={inputStyle} />
           </label>
           {adjustAmount !== 0 && (
-            <div style={{ fontSize: 13, color: "#6b7280", marginTop: 8 }}>
+            <div style={{ fontSize: 13, color: "var(--color-gray-500)", marginTop: 8 }}>
               New balance: <strong style={{ color: balanceColor(tenant.coin_balance + adjustAmount) }}>
                 {Math.round(tenant.coin_balance + adjustAmount).toLocaleString()}
               </strong> coins
@@ -651,9 +651,9 @@ function CoinModal({
         </div>
 
         {/* ACTION 2 — Monthly Reset */}
-        <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 16, marginBottom: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#374151", marginBottom: 8 }}>Monthly Coin Reset</div>
-          <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.8, marginBottom: 12 }}>
+        <div style={{ borderTop: "1px solid var(--color-gray-200)", paddingTop: 16, marginBottom: 20 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-gray-700)", marginBottom: 8 }}>Monthly Coin Reset</div>
+          <div style={{ fontSize: 12, color: "var(--color-gray-500)", lineHeight: 1.8, marginBottom: 12 }}>
             Projected accrual: <strong>{projectedCoins.toLocaleString()}</strong> coins<br />
             {summary?.breakdown && summary.breakdown.length > 0 && (
               <>Based on {summary.breakdown.length} occupied resource(s)<br /></>
@@ -670,16 +670,16 @@ function CoinModal({
         </div>
 
         {/* Transaction history */}
-        <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#374151", marginBottom: 8 }}>Recent Transactions</div>
+        <div style={{ borderTop: "1px solid var(--color-gray-200)", paddingTop: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-gray-700)", marginBottom: 8 }}>Recent Transactions</div>
           {loadingHistory ? (
-            <div style={{ fontSize: 13, color: "#9ca3af" }}>Loading...</div>
+            <div style={{ fontSize: 13, color: "var(--color-gray-400)" }}>Loading...</div>
           ) : history.length === 0 ? (
-            <div style={{ fontSize: 13, color: "#9ca3af" }}>No transactions yet.</div>
+            <div style={{ fontSize: 13, color: "var(--color-gray-400)" }}>No transactions yet.</div>
           ) : (
             <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ color: "#6b7280", textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
+                <tr style={{ color: "var(--color-gray-500)", textAlign: "left", borderBottom: "1px solid var(--color-gray-200)" }}>
                   <th style={{ padding: "4px 6px", fontWeight: 500 }}>Date</th>
                   <th style={{ padding: "4px 6px", fontWeight: 500, textAlign: "right" }}>Change</th>
                   <th style={{ padding: "4px 6px", fontWeight: 500 }}>Reason</th>
@@ -688,17 +688,17 @@ function CoinModal({
               </thead>
               <tbody>
                 {history.map((tx) => (
-                  <tr key={tx.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "4px 6px", color: "#6b7280" }}>
+                  <tr key={tx.id} style={{ borderBottom: "1px solid var(--color-gray-100)" }}>
+                    <td style={{ padding: "4px 6px", color: "var(--color-gray-500)" }}>
                       {dayjs(tx.created_at).format("MMM D, HH:mm")}
                     </td>
                     <td style={{ padding: "4px 6px", textAlign: "right", fontWeight: 600, color: tx.delta >= 0 ? "#059669" : "#DC2626" }}>
                       {tx.delta >= 0 ? "+" : ""}{Math.round(tx.delta).toLocaleString()}
                     </td>
-                    <td style={{ padding: "4px 6px", color: "#374151" }}>
+                    <td style={{ padding: "4px 6px", color: "var(--color-gray-700)" }}>
                       {tx.reason.replace("_", " ")}
                     </td>
-                    <td style={{ padding: "4px 6px", color: "#9ca3af", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <td style={{ padding: "4px 6px", color: "var(--color-gray-400)", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {tx.note || "—"}
                     </td>
                   </tr>
@@ -709,7 +709,7 @@ function CoinModal({
         </div>
 
         <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>
+          <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>
             Close
           </button>
         </div>
@@ -772,9 +772,9 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
 
   const inputStyle: React.CSSProperties = {
     display: "block", width: "100%", marginTop: 4, padding: "8px 10px",
-    border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
+    border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
   };
-  const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 };
+  const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 12 };
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)" }}
@@ -802,16 +802,16 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
           <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" style={inputStyle} />
         </label>
 
-        <div style={{ borderTop: "1px solid #e5e7eb", marginTop: 8, paddingTop: 16, marginBottom: 8 }}>
+        <div style={{ borderTop: "1px solid var(--color-gray-200)", marginTop: 8, paddingTop: 16, marginBottom: 8 }}>
           {/* Type selector */}
           <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
             {(["company", "individual"] as const).map((t) => (
               <button key={t} type="button" onClick={() => setTenantType(t)}
                 style={{
                   flex: 1, padding: "8px 0", borderRadius: 6, cursor: "pointer", fontSize: 13, textTransform: "capitalize",
-                  border: `2px solid ${tenantType === t ? "#003DA5" : "#e5e7eb"}`,
+                  border: `2px solid ${tenantType === t ? "#003DA5" : "var(--color-gray-200)"}`,
                   background: tenantType === t ? "#eff6ff" : "white",
-                  color: tenantType === t ? "#003DA5" : "#6b7280",
+                  color: tenantType === t ? "#003DA5" : "var(--color-gray-500)",
                   fontWeight: tenantType === t ? 600 : 400,
                 }}>
                 {t === "company" ? "🏢 Company" : "👤 Individual"}
@@ -853,7 +853,7 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
         </div>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Cancel</button>
+          <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Cancel</button>
           <button onClick={handleSubmit} disabled={saving} style={{ padding: "8px 16px", background: "#003DA5", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, opacity: saving ? 0.7 : 1 }}>
             {saving ? "Creating..." : "Create Tenant"}
           </button>
@@ -893,9 +893,9 @@ function EditTenantModal({ tenant, onClose, onSaved }: { tenant: Tenant; onClose
 
   const inputStyle: React.CSSProperties = {
     display: "block", width: "100%", marginTop: 4, padding: "8px 10px",
-    border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
+    border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
   };
-  const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 };
+  const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 12 };
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)" }}
@@ -923,7 +923,7 @@ function EditTenantModal({ tenant, onClose, onSaved }: { tenant: Tenant; onClose
           Is Resident
         </label>
 
-        <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 6, padding: 10, marginTop: 8, fontSize: 12, color: "#6b7280" }}>
+        <div style={{ background: "var(--color-gray-50)", border: "1px solid var(--color-gray-200)", borderRadius: 6, padding: 10, marginTop: 8, fontSize: 12, color: "var(--color-gray-500)" }}>
           <div><strong>Plan:</strong> {tenant.plan_type || "—"}</div>
           <div><strong>Monthly rate:</strong> {tenant.total_monthly_rate > 0 ? formatMoney(tenant.total_monthly_rate) : "—"}</div>
           <div><strong>Coins/мес:</strong> {tenant.monthly_coin_allowance > 0 ? Math.round(tenant.monthly_coin_allowance).toLocaleString() : "—"}</div>
@@ -931,7 +931,7 @@ function EditTenantModal({ tenant, onClose, onSaved }: { tenant: Tenant; onClose
         </div>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
-          <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Cancel</button>
+          <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Cancel</button>
           <button onClick={handleSave} disabled={saving} style={{ padding: "8px 16px", background: "#003DA5", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, opacity: saving ? 0.7 : 1 }}>
             {saving ? "Saving..." : "Save"}
           </button>
@@ -978,7 +978,7 @@ function CashPaymentModal({
 
   const inputStyle: React.CSSProperties = {
     display: "block", width: "100%", marginTop: 4, padding: "8px 10px",
-    border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
+    border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
   };
 
   return (
@@ -993,10 +993,10 @@ function CashPaymentModal({
         {error && <div style={{ background: "#fee2e2", color: "#dc2626", padding: "8px 12px", borderRadius: 6, marginBottom: 12, fontSize: 13 }}>{error}</div>}
 
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: "#374151", marginBottom: 8 }}>Категория оплаты</div>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", marginBottom: 8 }}>Категория оплаты</div>
           <div style={{ display: "flex", gap: 8 }}>
             {([["rent", "Аренда офиса"], ["meeting_rooms", "Митинг румы"]] as const).map(([val, label]) => (
-              <label key={val} style={{ flex: 1, padding: "10px 12px", border: `2px solid ${category === val ? "#003DA5" : "#e5e7eb"}`, borderRadius: 8, cursor: "pointer", fontSize: 13, textAlign: "center" as const, background: category === val ? "#eff6ff" : "white", color: category === val ? "#003DA5" : "#6b7280", fontWeight: category === val ? 600 : 400 }}>
+              <label key={val} style={{ flex: 1, padding: "10px 12px", border: `2px solid ${category === val ? "#003DA5" : "var(--color-gray-200)"}`, borderRadius: 8, cursor: "pointer", fontSize: 13, textAlign: "center" as const, background: category === val ? "#eff6ff" : "white", color: category === val ? "#003DA5" : "var(--color-gray-500)", fontWeight: category === val ? 600 : 400 }}>
                 <input type="radio" name="cat" value={val} checked={category === val} onChange={() => setCategory(val)} style={{ display: "none" }} />
                 {label}
               </label>
@@ -1004,24 +1004,24 @@ function CashPaymentModal({
           </div>
         </div>
 
-        <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 14 }}>
+        <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 14 }}>
           Сумма
           <input type="number" min={0} step={1000} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="500000" style={inputStyle} />
         </label>
 
-        <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 14 }}>
+        <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 14 }}>
           Дата платежа
           <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} style={inputStyle} />
-          <span style={{ fontSize: 11, color: "#9ca3af" }}>Фактическая дата получения оплаты</span>
+          <span style={{ fontSize: 11, color: "var(--color-gray-400)" }}>Фактическая дата получения оплаты</span>
         </label>
 
-        <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 16 }}>
+        <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 16 }}>
           Комментарий
           <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Наличная оплата" style={inputStyle} />
         </label>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Отмена</button>
+          <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Отмена</button>
           <button onClick={handleSubmit} disabled={saving} style={{ padding: "8px 16px", background: "#16a34a", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 600, opacity: saving ? 0.6 : 1 }}>
             {saving ? "Сохраняем..." : "Записать оплату"}
           </button>

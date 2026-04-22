@@ -223,21 +223,21 @@ export default function WorkspacePage() {
   );
 
   const navBtn: React.CSSProperties = {
-    border: "1px solid #d1d5db", borderRadius: 6, background: "white",
+    border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white",
     padding: "4px 10px", cursor: "pointer", fontSize: 16,
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 56px)" }}>
       {/* Top bar */}
-      <div style={{ padding: "10px 20px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between", background: "white", flexShrink: 0 }}>
+      <div style={{ padding: "10px 20px", borderBottom: "1px solid var(--color-gray-200)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "white", flexShrink: 0 }}>
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 4, background: "#f3f4f6", padding: 3, borderRadius: 8 }}>
+        <div style={{ display: "flex", gap: 4, background: "var(--color-gray-100)", padding: 3, borderRadius: 8 }}>
           {(["rooms", "floors"] as const).map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               style={{ padding: "6px 16px", borderRadius: 6, border: "none", fontSize: 13, fontWeight: 500, cursor: "pointer",
                 background: activeTab === tab ? "white" : "transparent",
-                color: activeTab === tab ? "#111827" : "#6b7280",
+                color: activeTab === tab ? "var(--color-gray-900)" : "var(--color-gray-500)",
                 boxShadow: activeTab === tab ? "0 1px 2px rgba(0,0,0,0.1)" : "none" }}>
               {tab === "rooms" ? "Rooms" : "Floors"}
             </button>
@@ -248,7 +248,7 @@ export default function WorkspacePage() {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button onClick={() => changeDate(-1)} style={navBtn}>‹</button>
           <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}
-            style={{ border: "1px solid #d1d5db", borderRadius: 6, padding: "4px 8px", fontSize: 13 }} />
+            style={{ border: "1px solid var(--color-gray-300)", borderRadius: 6, padding: "4px 8px", fontSize: 13 }} />
           <button onClick={() => changeDate(1)} style={navBtn}>›</button>
           <button onClick={() => setSelectedDate(today)} style={{ ...navBtn, background: "#003DA5", color: "white" }}>Today</button>
         </div>
@@ -264,7 +264,7 @@ export default function WorkspacePage() {
               setSelectedTenantId(id);
               const t = tenants.find((x) => x.id === id);
               if (t) setCoinBalance(t.coin_balance);
-            }} style={{ border: "1px solid #d1d5db", borderRadius: 6, padding: "4px 8px", fontSize: 13 }}>
+            }} style={{ border: "1px solid var(--color-gray-300)", borderRadius: 6, padding: "4px 8px", fontSize: 13 }}>
               {tenants.map((t) => <option key={t.id} value={t.id}>{t.company_name}</option>)}
             </select>
           )}
@@ -319,16 +319,16 @@ export default function WorkspacePage() {
             </div>
 
             {/* Day bookings table */}
-            <div style={{ borderTop: "1px solid #e5e7eb", padding: "12px 20px", maxHeight: 200, overflowY: "auto", background: "white", flexShrink: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 8 }}>
+            <div style={{ borderTop: "1px solid var(--color-gray-200)", padding: "12px 20px", maxHeight: 200, overflowY: "auto", background: "white", flexShrink: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-gray-700)", marginBottom: 8 }}>
                 Bookings — {moment(selectedDate).format("ddd, MMM D")}
               </div>
               {dayBookings.length === 0 ? (
-                <div style={{ fontSize: 13, color: "#9ca3af" }}>No bookings for this date.</div>
+                <div style={{ fontSize: 13, color: "var(--color-gray-400)" }}>No bookings for this date.</div>
               ) : (
                 <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
                   <thead>
-                    <tr style={{ color: "#6b7280", textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
+                    <tr style={{ color: "var(--color-gray-500)", textAlign: "left", borderBottom: "1px solid var(--color-gray-200)" }}>
                       <th style={{ padding: "4px 8px", fontWeight: 500 }}>Time</th>
                       <th style={{ padding: "4px 8px", fontWeight: 500 }}>Room</th>
                       <th style={{ padding: "4px 8px", fontWeight: 500 }}>Tenant</th>
@@ -339,7 +339,7 @@ export default function WorkspacePage() {
                     {dayBookings.map((b) => {
                       const room = rooms.find((r) => r.id === b.resource_id);
                       return (
-                        <tr key={b.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                        <tr key={b.id} style={{ borderBottom: "1px solid var(--color-gray-100)" }}>
                           <td style={{ padding: "6px 8px" }}>
                             {b.start_time.slice(11, 16)} – {b.end_time.slice(11, 16)}
                           </td>
@@ -347,7 +347,7 @@ export default function WorkspacePage() {
                           <td style={{ padding: "6px 8px" }}>{b.tenant_name || "—"}</td>
                           <td style={{ padding: "6px 8px", textAlign: "right" }}>
                             <button onClick={() => handleCancel(b.id)}
-                              style={{ fontSize: 12, padding: "2px 8px", border: "1px solid #d1d5db", borderRadius: 4, background: "white", cursor: "pointer", color: "#dc2626" }}>
+                              style={{ fontSize: 12, padding: "2px 8px", border: "1px solid var(--color-gray-300)", borderRadius: 4, background: "white", cursor: "pointer", color: "#dc2626" }}>
                               Cancel
                             </button>
                           </td>
@@ -362,7 +362,7 @@ export default function WorkspacePage() {
         )}
 
         {activeTab === "floors" && (
-          <div style={{ padding: 40, textAlign: "center", color: "#6b7280" }}>
+          <div style={{ padding: 40, textAlign: "center", color: "var(--color-gray-500)" }}>
             <a href="/dashboard/map" style={{ color: "#003DA5", fontSize: 16, fontWeight: 500, textDecoration: "none" }}>
               Open Floor Map →
             </a>
@@ -378,49 +378,49 @@ export default function WorkspacePage() {
             onMouseDown={(e) => e.stopPropagation()}>
             <h3 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 600 }}>New Booking</h3>
 
-            <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 12 }}>
               Room
               <select value={modalRoom?.id || ""} onChange={(e) => setModalRoom(rooms.find((r) => r.id === +e.target.value) || null)}
-                style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }}>
+                style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }}>
                 {rooms.map((r) => <option key={r.id} value={r.id}>{r.name} ({r.capacity} seats)</option>)}
               </select>
             </label>
 
             {hasPermission("create_booking") && tenants.length > 0 && (
-              <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 12 }}>
                 Tenant
                 <select value={selectedTenantId || ""} onChange={(e) => {
                   const id = +e.target.value;
                   setSelectedTenantId(id);
                   const t = tenants.find((x) => x.id === id);
                   if (t) setCoinBalance(t.coin_balance);
-                }} style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }}>
+                }} style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }}>
                   {tenants.map((t) => <option key={t.id} value={t.id}>{t.company_name}</option>)}
                 </select>
               </label>
             )}
 
-            <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 12 }}>
               Date
               <input type="date" value={modalDate} onChange={(e) => setModalDate(e.target.value)}
-                style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }} />
+                style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }} />
             </label>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-              <label style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)" }}>
                 From
                 <select value={modalFrom} onChange={(e) => {
                   setModalFrom(e.target.value);
                   if (timeToMin(modalTo) <= timeToMin(e.target.value))
                     setModalTo(minToTime(Math.min(timeToMin(e.target.value) + 60, 22 * 60)));
-                }} style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }}>
+                }} style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }}>
                   {timeSlots.filter((t) => t < "22:00").map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </label>
-              <label style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)" }}>
                 To
                 <select value={modalTo} onChange={(e) => setModalTo(e.target.value)}
-                  style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }}>
+                  style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }}>
                   {timeSlots.filter((t) => t > modalFrom).map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </label>
@@ -443,7 +443,7 @@ export default function WorkspacePage() {
             )}
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => setShowModal(false)} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Cancel</button>
+              <button onClick={() => setShowModal(false)} style={{ padding: "8px 16px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Cancel</button>
               <button onClick={handleBook} disabled={saving || !modalRoom || !selectedTenantId}
                 style={{ padding: "8px 16px", background: "#003DA5", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, opacity: saving ? 0.7 : 1 }}>
                 {saving ? "Booking..." : "Book Now"}
@@ -460,7 +460,7 @@ export default function WorkspacePage() {
           <div style={{ background: "white", borderRadius: 12, padding: 24, width: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
             onMouseDown={(e) => e.stopPropagation()}>
             <h3 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 600 }}>Booking Detail</h3>
-            <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.8 }}>
+            <div style={{ fontSize: 13, color: "var(--color-gray-700)", lineHeight: 1.8 }}>
               <div><strong>Room:</strong> {rooms.find((r) => r.id === detailBooking.resource_id)?.name || "—"}</div>
               <div><strong>Tenant:</strong> {detailBooking.tenant_name || "—"}</div>
               <div><strong>Time:</strong> {detailBooking.start_time.slice(11, 16)} – {detailBooking.end_time.slice(11, 16)}</div>
@@ -469,7 +469,7 @@ export default function WorkspacePage() {
             {/* Salto access indicator */}
             <div style={{ marginTop: 12 }}>
               {accessesLoading ? (
-                <div style={{ fontSize: 12, color: "#9ca3af" }}>Loading access info...</div>
+                <div style={{ fontSize: 12, color: "var(--color-gray-400)" }}>Loading access info...</div>
               ) : bookingAccesses.length > 0 ? (
                 <div style={{ background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: 6, padding: "8px 12px" }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: "#065f46", marginBottom: 4 }}>Salto Access Granted</div>
@@ -478,7 +478,7 @@ export default function WorkspacePage() {
                   ))}
                 </div>
               ) : (
-                <div style={{ background: "#f3f4f6", border: "1px solid #e5e7eb", borderRadius: 6, padding: "8px 12px", fontSize: 12, color: "#6b7280" }}>
+                <div style={{ background: "var(--color-gray-100)", border: "1px solid var(--color-gray-200)", borderRadius: 6, padding: "8px 12px", fontSize: 12, color: "var(--color-gray-500)" }}>
                   No Salto access configured
                 </div>
               )}
@@ -489,7 +489,7 @@ export default function WorkspacePage() {
                 Cancel Booking
               </button>
               <button onClick={() => setDetailBooking(null)}
-                style={{ padding: "6px 14px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 13 }}>
+                style={{ padding: "6px 14px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 13 }}>
                 Close
               </button>
             </div>

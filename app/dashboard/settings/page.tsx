@@ -31,10 +31,10 @@ const ROLES = ["admin", "manager", "receptionist", "owner", "tenant"];
 
 const inputStyle: React.CSSProperties = {
   display: "block", width: "100%", marginTop: 4, padding: "8px 10px",
-  border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
+  border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
 };
 const labelStyle: React.CSSProperties = {
-  fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 14,
+  fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 14,
 };
 
 export default function SettingsPage() {
@@ -85,7 +85,7 @@ export default function SettingsPage() {
     return (
       <div className="p-6">
         <h1 className="text-2xl font-semibold text-gray-900 mb-4">Settings</h1>
-        <div style={{ color: "#6b7280", fontSize: 14 }}>Admin access required.</div>
+        <div style={{ color: "var(--color-gray-500)", fontSize: 14 }}>Admin access required.</div>
       </div>
     );
   }
@@ -101,7 +101,7 @@ export default function SettingsPage() {
       )}
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid #e5e7eb" }}>
+      <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid var(--color-gray-200)" }}>
         {TABS.map((t) => (
           <button
             key={t}
@@ -109,7 +109,7 @@ export default function SettingsPage() {
             style={{
               padding: "8px 16px", border: "none", borderBottom: tab === t ? "2px solid #003DA5" : "2px solid transparent",
               background: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", marginBottom: -1,
-              color: tab === t ? "#003DA5" : "#6b7280",
+              color: tab === t ? "#003DA5" : "var(--color-gray-500)",
             }}
           >
             {t}
@@ -150,7 +150,7 @@ export default function SettingsPage() {
                   document.documentElement.style.setProperty("--cbc-accent", e.target.value);
                 }}
                 onBlur={() => saveSetting("accent_color", settings.accent_color || "#003DA5")}
-                style={{ width: 48, height: 36, border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer" }}
+                style={{ width: 48, height: 36, border: "1px solid var(--color-gray-300)", borderRadius: 6, cursor: "pointer" }}
               />
               <input
                 value={settings.accent_color || "#003DA5"}
@@ -257,12 +257,12 @@ export default function SettingsPage() {
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ borderBottom: "2px solid #e5e7eb" }}>
-                <th style={{ textAlign: "left", padding: "8px 12px", fontWeight: 600, color: "#374151" }}>
+              <tr style={{ borderBottom: "2px solid var(--color-gray-200)" }}>
+                <th style={{ textAlign: "left", padding: "8px 12px", fontWeight: 600, color: "var(--color-gray-700)" }}>
                   Permission
                 </th>
                 {ROLES.map((r) => (
-                  <th key={r} style={{ textAlign: "center", padding: "8px 12px", fontWeight: 600, color: "#374151", textTransform: "capitalize" }}>
+                  <th key={r} style={{ textAlign: "center", padding: "8px 12px", fontWeight: 600, color: "var(--color-gray-700)", textTransform: "capitalize" }}>
                     {r}
                   </th>
                 ))}
@@ -270,8 +270,8 @@ export default function SettingsPage() {
             </thead>
             <tbody>
               {PERMISSIONS_LIST.map((perm) => (
-                <tr key={perm.key} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "8px 12px", color: "#374151" }}>{perm.label}</td>
+                <tr key={perm.key} style={{ borderBottom: "1px solid var(--color-gray-100)" }}>
+                  <td style={{ padding: "8px 12px", color: "var(--color-gray-700)" }}>{perm.label}</td>
                   {ROLES.map((r) => {
                     const checked = permissions[r]?.[perm.key] ?? false;
                     const locked = r === "admin";
@@ -291,7 +291,7 @@ export default function SettingsPage() {
               ))}
             </tbody>
           </table>
-          <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>
+          <div style={{ fontSize: 12, color: "var(--color-gray-400)", marginTop: 8 }}>
             Admin permissions are always enabled. Changes take effect on next login.
           </div>
         </div>
@@ -318,7 +318,7 @@ const ROLE_BADGE: Record<string, string> = {
   admin: "background:#fef2f2;color:#dc2626",
   manager: "background:#f5f3ff;color:#7c3aed",
   receptionist: "background:#eff6ff;color:#2563eb",
-  tenant: "background:#f3f4f6;color:#6b7280",
+  tenant: "background:var(--color-gray-100);color:var(--color-gray-500)",
 };
 
 function UsersTab() {
@@ -433,7 +433,7 @@ function UsersTab() {
 
   const iStyle: React.CSSProperties = {
     display: "block", width: "100%", marginTop: 4, padding: "8px 10px",
-    border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
+    border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
   };
 
   return (
@@ -450,9 +450,9 @@ function UsersTab() {
 
       <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
         <thead>
-          <tr style={{ borderBottom: "2px solid #e5e7eb" }}>
+          <tr style={{ borderBottom: "2px solid var(--color-gray-200)" }}>
             {["Name", "Email", "Role", "Status", "Actions"].map((h) => (
-              <th key={h} style={{ textAlign: "left", padding: "8px 12px", fontWeight: 600, color: "#374151" }}>{h}</th>
+              <th key={h} style={{ textAlign: "left", padding: "8px 12px", fontWeight: 600, color: "var(--color-gray-700)" }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -460,17 +460,17 @@ function UsersTab() {
           {users.map((u) => {
             const isSelf = u.id === currentUserId;
             return (
-              <tr key={u.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+              <tr key={u.id} style={{ borderBottom: "1px solid var(--color-gray-100)" }}>
                 <td style={{ padding: "8px 12px", fontWeight: 500 }}>
                   {editingUserId === u.id ? (
                     <input value={editName} onChange={(e) => setEditName(e.target.value)}
-                      style={{ padding: "3px 6px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 13, width: 120 }} />
+                      style={{ padding: "3px 6px", border: "1px solid var(--color-gray-300)", borderRadius: 4, fontSize: 13, width: 120 }} />
                   ) : u.name}
                 </td>
-                <td style={{ padding: "8px 12px", color: "#6b7280" }}>
+                <td style={{ padding: "8px 12px", color: "var(--color-gray-500)" }}>
                   {editingUserId === u.id ? (
                     <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)}
-                      style={{ padding: "3px 6px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 13, width: 160 }} />
+                      style={{ padding: "3px 6px", border: "1px solid var(--color-gray-300)", borderRadius: 4, fontSize: 13, width: 160 }} />
                   ) : u.email}
                 </td>
                 <td style={{ padding: "8px 12px" }}>
@@ -480,7 +480,7 @@ function UsersTab() {
                     </span>
                   ) : (
                     <select value={u.role} onChange={(e) => changeRole(u.id, e.target.value)}
-                      style={{ padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 12, cursor: "pointer" }}>
+                      style={{ padding: "3px 8px", border: "1px solid var(--color-gray-300)", borderRadius: 4, fontSize: 12, cursor: "pointer" }}>
                       {["admin", "manager", "receptionist", "owner", "tenant"].map((r) => (
                         <option key={r} value={r}>{r}</option>
                       ))}
@@ -497,22 +497,22 @@ function UsersTab() {
                     {editingUserId === u.id ? (
                       <>
                         <button onClick={() => saveUserEdit(u.id)} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #a7f3d0", borderRadius: 4, background: "#ecfdf5", color: "#065f46", cursor: "pointer" }}>Save</button>
-                        <button onClick={() => setEditingUserId(null)} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 4, background: "white", cursor: "pointer" }}>Cancel</button>
+                        <button onClick={() => setEditingUserId(null)} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid var(--color-gray-300)", borderRadius: 4, background: "white", cursor: "pointer" }}>Cancel</button>
                       </>
                     ) : (
                       <>
                         {!isSelf && (
                           <button onClick={() => { setEditingUserId(u.id); setEditName(u.name); setEditEmail(u.email); }}
-                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 4, background: "white", cursor: "pointer" }}>Edit</button>
+                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid var(--color-gray-300)", borderRadius: 4, background: "white", cursor: "pointer" }}>Edit</button>
                         )}
                         {!isSelf && (
                           <button onClick={() => { setResetUser(u); setNewPassword(""); setResetDone(false); }}
                             title="Reset password"
-                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 4, background: "white", cursor: "pointer" }}>🔑</button>
+                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid var(--color-gray-300)", borderRadius: 4, background: "white", cursor: "pointer" }}>🔑</button>
                         )}
                         {!isSelf && (
                           <button onClick={() => toggleActive(u.id, !u.is_active)}
-                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid #d1d5db", borderRadius: 4, background: "white", cursor: "pointer", color: u.is_active ? "#dc2626" : "#16a34a" }}>
+                            style={{ fontSize: 11, padding: "3px 8px", border: "1px solid var(--color-gray-300)", borderRadius: 4, background: "white", cursor: "pointer", color: u.is_active ? "#dc2626" : "#16a34a" }}>
                             {u.is_active ? "Off" : "On"}
                           </button>
                         )}
@@ -538,19 +538,19 @@ function UsersTab() {
             onMouseDown={(e) => e.stopPropagation()}>
             <h3 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 600 }}>Add User</h3>
             {addError && <div style={{ background: "#fee2e2", color: "#dc2626", padding: "8px 12px", borderRadius: 6, marginBottom: 12, fontSize: 13 }}>{addError}</div>}
-            <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 12 }}>
               Name
               <input value={addForm.name} onChange={(e) => setAddForm((p) => ({ ...p, name: e.target.value }))} style={iStyle} />
             </label>
-            <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 12 }}>
               Email
               <input type="email" value={addForm.email} onChange={(e) => setAddForm((p) => ({ ...p, email: e.target.value }))} style={iStyle} />
             </label>
-            <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 12 }}>
               Password
               <input type="password" value={addForm.password} onChange={(e) => setAddForm((p) => ({ ...p, password: e.target.value }))} style={iStyle} />
             </label>
-            <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 12 }}>
               Role
               <select value={addForm.role} onChange={(e) => setAddForm((p) => ({ ...p, role: e.target.value }))} style={iStyle}>
                 {["admin", "manager", "receptionist", "owner", "tenant"].map((r) => (
@@ -559,7 +559,7 @@ function UsersTab() {
               </select>
             </label>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
-              <button onClick={() => setShowAdd(false)} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Cancel</button>
+              <button onClick={() => setShowAdd(false)} style={{ padding: "8px 16px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Cancel</button>
               <button onClick={handleAdd} disabled={addSaving || !addForm.name || !addForm.email || !addForm.password}
                 style={{ padding: "8px 16px", background: "#003DA5", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, opacity: addSaving ? 0.7 : 1 }}>
                 {addSaving ? "Creating..." : "Create User"}
@@ -574,8 +574,8 @@ function UsersTab() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
           onClick={(e) => { if (e.target === e.currentTarget) setResetUser(null); }}>
           <div style={{ background: "white", borderRadius: 12, padding: 24, maxWidth: 400, width: "100%" }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Reset Password</h3>
-            <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>{resetUser.name} ({resetUser.email})</p>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--color-gray-900)", marginBottom: 4 }}>Reset Password</h3>
+            <p style={{ fontSize: 13, color: "var(--color-gray-500)", marginBottom: 16 }}>{resetUser.name} ({resetUser.email})</p>
 
             {!resetDone ? (
               <>
@@ -585,16 +585,16 @@ function UsersTab() {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="New password (min 6 chars)"
-                    style={{ flex: 1, padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14 }}
+                    style={{ flex: 1, padding: "8px 10px", border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14 }}
                   />
                   <button onClick={generatePassword}
-                    style={{ padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: 6, background: "#f9fafb", cursor: "pointer", fontSize: 12, whiteSpace: "nowrap" }}>
+                    style={{ padding: "8px 12px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "var(--color-gray-50)", cursor: "pointer", fontSize: 12, whiteSpace: "nowrap" }}>
                     Generate
                   </button>
                 </div>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
                   <button onClick={() => setResetUser(null)}
-                    style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>
+                    style={{ padding: "8px 16px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>
                     Cancel
                   </button>
                   <button onClick={handleResetPassword} disabled={resetSaving || newPassword.length < 6}
@@ -607,11 +607,11 @@ function UsersTab() {
               <>
                 <div style={{ padding: 12, background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: 8, marginBottom: 12 }}>
                   <div style={{ fontSize: 12, color: "#065f46", marginBottom: 4 }}>Password reset successfully. Copy it now:</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "monospace", color: "#111827", letterSpacing: 1 }}>{newPassword}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "monospace", color: "var(--color-gray-900)", letterSpacing: 1 }}>{newPassword}</div>
                 </div>
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
                   <button onClick={() => setResetUser(null)}
-                    style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>
+                    style={{ padding: "8px 16px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>
                     Done
                   </button>
                 </div>
@@ -788,10 +788,10 @@ function GeneralLocaleSection({
   const timezone = settings.global_timezone || "Asia/Tashkent";
 
   return (
-    <div style={{ marginBottom: 24, paddingBottom: 20, borderBottom: "1px solid #e5e7eb" }}>
+    <div style={{ marginBottom: 24, paddingBottom: 20, borderBottom: "1px solid var(--color-gray-200)" }}>
       <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Региональные настройки</div>
 
-      <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 14 }}>
+      <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 14 }}>
         Глобальная валюта
         <select
           value={currency}
@@ -799,7 +799,7 @@ function GeneralLocaleSection({
             setSettings((p) => ({ ...p, global_currency: e.target.value }));
             save(e.target.value, timezone);
           }}
-          style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box" as const }}
+          style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14, boxSizing: "border-box" as const }}
         >
           {CURRENCIES.map((c) => (
             <option key={c.code} value={c.code}>{c.code} — {c.label}</option>
@@ -807,7 +807,7 @@ function GeneralLocaleSection({
         </select>
       </label>
 
-      <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 14 }}>
+      <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 14 }}>
         Глобальный часовой пояс
         <select
           value={timezone}
@@ -815,7 +815,7 @@ function GeneralLocaleSection({
             setSettings((p) => ({ ...p, global_timezone: e.target.value }));
             save(currency, e.target.value);
           }}
-          style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box" as const }}
+          style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14, boxSizing: "border-box" as const }}
         >
           {TIMEZONES.map((t) => (
             <option key={t.tz} value={t.tz}>{t.label}</option>
@@ -850,9 +850,9 @@ function MonthlyResetButton({ setToast }: { setToast: (t: string | null) => void
   }
 
   return (
-    <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #e5e7eb" }}>
+    <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--color-gray-200)" }}>
       <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Начисление монет</div>
-      <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 12, lineHeight: 1.6 }}>
+      <p style={{ fontSize: 12, color: "var(--color-gray-500)", marginBottom: 12, lineHeight: 1.6 }}>
         Пересчитать и начислить монеты всем арендаторам на основании их юнитов × % плана.
         Текущий баланс монет будет заменён на рассчитанное начисление.
         В production это будет cron-задача на 1-е число каждого месяца.
@@ -865,7 +865,7 @@ function MonthlyResetButton({ setToast }: { setToast: (t: string | null) => void
         {resetting ? "Начисляем..." : "Начислить монеты на месяц"}
       </button>
       {result && (
-        <div style={{ marginTop: 8, fontSize: 12, color: "#374151", background: "#fef3c7", padding: "8px 12px", borderRadius: 6, border: "1px solid #fcd34d" }}>
+        <div style={{ marginTop: 8, fontSize: 12, color: "var(--color-gray-700)", background: "#fef3c7", padding: "8px 12px", borderRadius: 6, border: "1px solid #fcd34d" }}>
           {result}
         </div>
       )}
@@ -943,16 +943,16 @@ function ZoneColorsSection({
   };
 
   const pickerRow = (key: string, label: string) => (
-    <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#374151", marginBottom: 6 }}>
+    <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "var(--color-gray-700)", marginBottom: 6 }}>
       <input
         type="color"
         value={settings[key] || COLOR_DEFAULTS[key] || "#94a3b8"}
         onChange={(e) => update(key, e.target.value)}
-        style={{ width: 36, height: 36, border: "1px solid #d1d5db", borderRadius: 6, cursor: "pointer", padding: 2 }}
+        style={{ width: 36, height: 36, border: "1px solid var(--color-gray-300)", borderRadius: 6, cursor: "pointer", padding: 2 }}
       />
-      <span style={{ display: "inline-block", width: 18, height: 18, borderRadius: 4, background: settings[key] || COLOR_DEFAULTS[key], border: "1px solid #e5e7eb" }} />
+      <span style={{ display: "inline-block", width: 18, height: 18, borderRadius: 4, background: settings[key] || COLOR_DEFAULTS[key], border: "1px solid var(--color-gray-200)" }} />
       <span style={{ minWidth: 100 }}>{label}</span>
-      <span style={{ fontFamily: "monospace", fontSize: 11, color: "#9ca3af" }}>{settings[key] || COLOR_DEFAULTS[key]}</span>
+      <span style={{ fontFamily: "monospace", fontSize: 11, color: "var(--color-gray-400)" }}>{settings[key] || COLOR_DEFAULTS[key]}</span>
     </label>
   );
 
@@ -960,11 +960,11 @@ function ZoneColorsSection({
   const opacityHover = parseFloat(settings.zone_opacity_hover || "0.5");
 
   return (
-    <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #e5e7eb" }}>
+    <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--color-gray-200)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <div style={{ fontSize: 15, fontWeight: 600 }}>Цвета зон</div>
         <button onClick={resetDefaults}
-          style={{ padding: "6px 12px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", fontSize: 12, cursor: "pointer", color: "#374151" }}>
+          style={{ padding: "6px 12px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", fontSize: 12, cursor: "pointer", color: "var(--color-gray-700)" }}>
           Сбросить по умолчанию
         </button>
       </div>
@@ -972,16 +972,16 @@ function ZoneColorsSection({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         {COLOR_GROUPS.map((g) => (
           <div key={g.title}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 8 }}>{g.title}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-gray-700)", marginBottom: 8 }}>{g.title}</div>
             {g.items.map((it) => pickerRow(it.key, it.label))}
           </div>
         ))}
       </div>
 
       <div style={{ marginTop: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 8 }}>Прозрачность</div>
-        <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 10 }}>
-          Заливка: <strong style={{ color: "#111827" }}>{opacity.toFixed(2)}</strong>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-gray-700)", marginBottom: 8 }}>Прозрачность</div>
+        <label style={{ display: "block", fontSize: 12, color: "var(--color-gray-500)", marginBottom: 10 }}>
+          Заливка: <strong style={{ color: "var(--color-gray-900)" }}>{opacity.toFixed(2)}</strong>
           <input
             type="range" min={0.1} max={0.8} step={0.05}
             value={opacity}
@@ -989,8 +989,8 @@ function ZoneColorsSection({
             style={{ display: "block", width: 320, marginTop: 4 }}
           />
         </label>
-        <label style={{ display: "block", fontSize: 12, color: "#6b7280" }}>
-          При наведении: <strong style={{ color: "#111827" }}>{opacityHover.toFixed(2)}</strong>
+        <label style={{ display: "block", fontSize: 12, color: "var(--color-gray-500)" }}>
+          При наведении: <strong style={{ color: "var(--color-gray-900)" }}>{opacityHover.toFixed(2)}</strong>
           <input
             type="range" min={0.2} max={0.9} step={0.05}
             value={opacityHover}

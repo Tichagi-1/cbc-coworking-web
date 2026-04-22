@@ -42,7 +42,7 @@ export default function HelpPage() {
           <P><B>Login:</B> Use your email and password at the login screen. If you forgot your password, contact your administrator.</P>
           <P><B>Navigation:</B> Use the sidebar on the left to switch between sections. The sidebar shows only pages available to your role.</P>
           <P><B>Your role:</B> <span style={{ padding: "2px 8px", borderRadius: 4, background: "#eff6ff", color: "#1e40af", fontWeight: 600, fontSize: 12 }}>{ROLE_LABEL[role] || role}</span></P>
-          <P style={{ color: "#6b7280" }}>{ROLE_DESC[role] || ""}</P>
+          <P style={{ color: "var(--color-gray-500)" }}>{ROLE_DESC[role] || ""}</P>
           <P><B>Property selector:</B> The header bar shows the current property. If multiple properties exist, use the dropdown to switch between them.</P>
         </div>
       ),
@@ -90,7 +90,7 @@ export default function HelpPage() {
       content: () => (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <P><B>Resource types:</B></P>
-          <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: "#374151", lineHeight: 1.8 }}>
+          <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: "var(--color-gray-700)", lineHeight: 1.8 }}>
             <li><B>Office</B> — leasable office space (counts toward vacancy)</li>
             <li><B>Open Space</B> — shared work area (counts toward vacancy)</li>
             <li><B>Hot Desk</B> — flexible desk (counts toward vacancy)</li>
@@ -176,12 +176,12 @@ export default function HelpPage() {
         return (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {filtered.map((f, i) => (
-              <div key={i} style={{ padding: "10px 14px", background: "#f9fafb", borderRadius: 8, border: "1px solid #f3f4f6" }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#111827", marginBottom: 4 }}>Q: {f.q}</div>
-                <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>{f.a}</div>
+              <div key={i} style={{ padding: "10px 14px", background: "var(--color-gray-50)", borderRadius: 8, border: "1px solid var(--color-gray-100)" }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-gray-900)", marginBottom: 4 }}>Q: {f.q}</div>
+                <div style={{ fontSize: 13, color: "var(--color-gray-500)", lineHeight: 1.5 }}>{f.a}</div>
               </div>
             ))}
-            {filtered.length === 0 && <P style={{ color: "#9ca3af" }}>No results for "{search}"</P>}
+            {filtered.length === 0 && <P style={{ color: "var(--color-gray-400)" }}>No results for "{search}"</P>}
           </div>
         );
       },
@@ -195,7 +195,7 @@ export default function HelpPage() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: "#0A1730", margin: 0 }}>Help</h1>
-        <span style={{ padding: "2px 8px", borderRadius: 4, background: "#f3f4f6", color: "#6b7280", fontSize: 11, fontWeight: 600 }}>
+        <span style={{ padding: "2px 8px", borderRadius: 4, background: "var(--color-gray-100)", color: "var(--color-gray-500)", fontSize: 11, fontWeight: 600 }}>
           CBC Coworking OS
         </span>
       </div>
@@ -206,7 +206,7 @@ export default function HelpPage() {
         placeholder="Search help..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        style={{ width: "100%", padding: "10px 14px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 14, marginBottom: 20 }}
+        style={{ width: "100%", padding: "10px 14px", border: "1px solid var(--color-gray-200)", borderRadius: 8, fontSize: 14, marginBottom: 20 }}
       />
 
       {/* Table of contents */}
@@ -218,9 +218,9 @@ export default function HelpPage() {
             style={{
               padding: "4px 12px",
               borderRadius: 6,
-              border: expanded === s.id ? "1px solid #1F69FF" : "1px solid #e5e7eb",
+              border: expanded === s.id ? "1px solid #1F69FF" : "1px solid var(--color-gray-200)",
               background: expanded === s.id ? "#eff6ff" : "white",
-              color: expanded === s.id ? "#1F69FF" : "#6b7280",
+              color: expanded === s.id ? "#1F69FF" : "var(--color-gray-500)",
               fontSize: 13,
               fontWeight: 500,
               cursor: "pointer",
@@ -234,7 +234,7 @@ export default function HelpPage() {
       {/* Sections */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {visible.map((s) => (
-          <div key={s.id} style={{ background: "white", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+          <div key={s.id} style={{ background: "white", border: "1px solid var(--color-gray-200)", borderRadius: 10, overflow: "hidden" }}>
             <button
               onClick={() => toggle(s.id)}
               style={{
@@ -250,12 +250,12 @@ export default function HelpPage() {
               }}
             >
               <span style={{ fontSize: 15, fontWeight: 600, color: "#0A1730" }}>{s.title}</span>
-              <span style={{ fontSize: 14, color: "#9ca3af", transition: "transform 0.2s", transform: expanded === s.id ? "rotate(180deg)" : "" }}>
+              <span style={{ fontSize: 14, color: "var(--color-gray-400)", transition: "transform 0.2s", transform: expanded === s.id ? "rotate(180deg)" : "" }}>
                 ▼
               </span>
             </button>
             {expanded === s.id && (
-              <div style={{ padding: "0 18px 16px", borderTop: "1px solid #f3f4f6" }}>
+              <div style={{ padding: "0 18px 16px", borderTop: "1px solid var(--color-gray-100)" }}>
                 <div style={{ paddingTop: 12 }}>{s.content()}</div>
               </div>
             )}
@@ -267,9 +267,9 @@ export default function HelpPage() {
 }
 
 function P({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return <p style={{ margin: 0, fontSize: 14, color: "#374151", lineHeight: 1.6, ...style }}>{children}</p>;
+  return <p style={{ margin: 0, fontSize: 14, color: "var(--color-gray-700)", lineHeight: 1.6, ...style }}>{children}</p>;
 }
 
 function B({ children }: { children: React.ReactNode }) {
-  return <strong style={{ fontWeight: 600, color: "#111827" }}>{children}</strong>;
+  return <strong style={{ fontWeight: 600, color: "var(--color-gray-900)" }}>{children}</strong>;
 }
