@@ -38,19 +38,6 @@ const FloorCanvas = dynamic(() => import("@/components/FloorCanvas"), {
 
 type Mode = "view" | "edit" | "history";
 
-// Legend fallback colors — used only if zoneColors hasn't loaded yet at
-// click time. Matches the live plan's own fallbacks so the exported
-// legend never drifts from what the user saw on screen.
-const LEGEND_FALLBACK = {
-  office_occupied:     "#22C55E",
-  open_space_occupied: "#059669",
-  hot_desk_occupied:   "#0891B2",
-  meeting_room:        "#7C3AED",
-  zoom_cabin:          "#9333EA",
-  event_zone:          "#DC2626",
-  amenity:             "#94a3b8",
-} as const;
-
 async function composePlanWithLegend(
   planDataURL: string,
   zoneColors: ZoneColorConfig | undefined,
@@ -84,15 +71,21 @@ async function composePlanWithLegend(
 
   const fontFamily = getComputedStyle(document.body).fontFamily || "sans-serif";
 
-  const rows: { label: string; color: string }[] = [
-    { label: "Office",       color: zoneColors?.office_occupied     ?? LEGEND_FALLBACK.office_occupied },
-    { label: "Open space",   color: zoneColors?.open_space_occupied ?? LEGEND_FALLBACK.open_space_occupied },
-    { label: "Hot desk",     color: zoneColors?.hot_desk_occupied   ?? LEGEND_FALLBACK.hot_desk_occupied },
-    { label: "Meeting room", color: zoneColors?.meeting_room        ?? LEGEND_FALLBACK.meeting_room },
-    { label: "Zoom cabin",   color: zoneColors?.zoom_cabin          ?? LEGEND_FALLBACK.zoom_cabin },
-    { label: "Event zone",   color: zoneColors?.event_zone          ?? LEGEND_FALLBACK.event_zone },
-    { label: "Amenity",      color: zoneColors?.amenity             ?? LEGEND_FALLBACK.amenity },
+  // Plan colors are encoded by status (for leasable zones) and by
+  // dedicated color per special-zone type — NOT by resource type. The
+  // legend mirrors that. Leasable status palette is sourced from
+  // color_office_* by convention (open_space/hot_desk share it).
+  const rowDefs: { label: string; color: string | undefined }[] = [
+    { label: "Occupied",     color: zoneColors?.office_occupied },
+    { label: "Vacant",       color: zoneColors?.office_vacant },
+    { label: "Reserved",     color: zoneColors?.office_reserved },
+    { label: "Meeting room", color: zoneColors?.meeting_room },
+    { label: "Zoom cabin",   color: zoneColors?.zoom_cabin },
+    { label: "Event zone",   color: zoneColors?.event_zone },
   ];
+  const rows = rowDefs.filter(
+    (r): r is { label: string; color: string } => typeof r.color === "string",
+  );
 
   const pad = 24 * DPI;
   const titleTopPad = 20 * DPI;
