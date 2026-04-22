@@ -38,6 +38,95 @@ const FloorCanvas = dynamic(() => import("@/components/FloorCanvas"), {
 
 type Mode = "view" | "edit" | "history";
 
+// Legend fallback colors — used only if zoneColors hasn't loaded yet at
+// click time. Matches the live plan's own fallbacks so the exported
+// legend never drifts from what the user saw on screen.
+const LEGEND_FALLBACK = {
+  office_occupied:     "#22C55E",
+  open_space_occupied: "#059669",
+  hot_desk_occupied:   "#0891B2",
+  meeting_room:        "#7C3AED",
+  zoom_cabin:          "#9333EA",
+  event_zone:          "#DC2626",
+  amenity:             "#94a3b8",
+} as const;
+
+async function composePlanWithLegend(
+  planDataURL: string,
+  zoneColors: ZoneColorConfig | undefined,
+): Promise<string> {
+  await document.fonts.ready;
+
+  const planImg = new window.Image();
+  planImg.src = planDataURL;
+  await new Promise<void>((resolve, reject) => {
+    planImg.onload = () => resolve();
+    planImg.onerror = () => reject(new Error("Failed to load plan image"));
+  });
+
+  const DPI = 2; // FloorCanvas.exportPNG uses multiplier: 2
+  const planW = planImg.naturalWidth;
+  const planH = planImg.naturalHeight;
+  const legendW = 220 * DPI;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = planW + legendW;
+  canvas.height = planH;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D context unavailable");
+
+  ctx.drawImage(planImg, 0, 0);
+
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(planW, 0, legendW, planH);
+  ctx.fillStyle = "#E1E7EF";
+  ctx.fillRect(planW, 0, DPI, planH);
+
+  const fontFamily = getComputedStyle(document.body).fontFamily || "sans-serif";
+
+  const rows: { label: string; color: string }[] = [
+    { label: "Office",       color: zoneColors?.office_occupied     ?? LEGEND_FALLBACK.office_occupied },
+    { label: "Open space",   color: zoneColors?.open_space_occupied ?? LEGEND_FALLBACK.open_space_occupied },
+    { label: "Hot desk",     color: zoneColors?.hot_desk_occupied   ?? LEGEND_FALLBACK.hot_desk_occupied },
+    { label: "Meeting room", color: zoneColors?.meeting_room        ?? LEGEND_FALLBACK.meeting_room },
+    { label: "Zoom cabin",   color: zoneColors?.zoom_cabin          ?? LEGEND_FALLBACK.zoom_cabin },
+    { label: "Event zone",   color: zoneColors?.event_zone          ?? LEGEND_FALLBACK.event_zone },
+    { label: "Amenity",      color: zoneColors?.amenity             ?? LEGEND_FALLBACK.amenity },
+  ];
+
+  const pad = 24 * DPI;
+  const titleTopPad = 20 * DPI;
+  const titleSize = 16 * DPI;
+  const afterTitleGap = 16 * DPI;
+  const swatch = 24 * DPI;
+  const swatchRadius = 4 * DPI;
+  const gap = 12 * DPI;
+  const rowSpacing = 20 * DPI;
+  const labelSize = 14 * DPI;
+
+  ctx.fillStyle = "#1F2839";
+  ctx.font = `500 ${titleSize}px ${fontFamily}`;
+  ctx.textBaseline = "top";
+  ctx.fillText("Legend", planW + pad, titleTopPad);
+
+  ctx.font = `400 ${labelSize}px ${fontFamily}`;
+  ctx.textBaseline = "middle";
+
+  let rowY = titleTopPad + titleSize + afterTitleGap;
+  for (const row of rows) {
+    const x = planW + pad;
+    ctx.fillStyle = row.color;
+    ctx.beginPath();
+    ctx.roundRect(x, rowY, swatch, swatch, swatchRadius);
+    ctx.fill();
+    ctx.fillStyle = "#363F54";
+    ctx.fillText(row.label, x + swatch + gap, rowY + swatch / 2);
+    rowY += swatch + rowSpacing;
+  }
+
+  return canvas.toDataURL("image/png");
+}
+
 export default function MapPage() {
   const { propertyId: BUILDING_ID } = useProperty();
   const initialFloorApplied = useRef(false);
@@ -718,13 +807,18 @@ export default function MapPage() {
           {/* Export buttons — use fabric canvas export */}
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
               const dataURL = floorCanvasRef.current?.exportPNG();
               if (!dataURL) { alert("No floor plan loaded"); return; }
-              const link = document.createElement("a");
-              link.download = `floor-plan-${floorId}-${dayjs().format("YYYY-MM-DD")}.png`;
-              link.href = dataURL;
-              link.click();
+              try {
+                const finalURL = await composePlanWithLegend(dataURL, zoneColors);
+                const link = document.createElement("a");
+                link.download = `floor-plan-${floorId}-${dayjs().format("YYYY-MM-DD")}.png`;
+                link.href = finalURL;
+                link.click();
+              } catch (e) {
+                alert(`Export failed: ${(e as Error).message}`);
+              }
             }}
             className="px-3 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
           >
