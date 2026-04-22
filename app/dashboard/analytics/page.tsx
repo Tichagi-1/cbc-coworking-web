@@ -16,10 +16,10 @@ const COLORS = ["#003DA5", "#1F69FF", "#418FDE", "#DAE1E8", "#6366f1", "#f59e0b"
 
 function KPICard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
   return (
-    <div style={{ background: "white", borderRadius: 10, padding: "16px 20px", border: "1px solid #e5e7eb", flex: 1, minWidth: 140 }}>
-      <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 500, marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 700, color: color || "#111827" }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 4 }}>{sub}</div>}
+    <div style={{ background: "white", borderRadius: 10, padding: "16px 20px", border: "1px solid var(--color-gray-200)", flex: 1, minWidth: 140 }}>
+      <div style={{ fontSize: 12, color: "var(--color-gray-500)", fontWeight: 500, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 700, color: color || "var(--color-gray-900)" }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: "var(--color-gray-400)", marginTop: 4 }}>{sub}</div>}
     </div>
   );
 }
@@ -65,7 +65,7 @@ export default function AnalyticsPage() {
 
   if (!canView) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "calc(100vh - 64px)", color: "#6b7280", fontSize: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "calc(100vh - 64px)", color: "var(--color-gray-500)", fontSize: 14 }}>
         У вас нет доступа к аналитике
       </div>
     );
@@ -73,7 +73,7 @@ export default function AnalyticsPage() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "calc(100vh - 64px)", color: "#6b7280", fontSize: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "calc(100vh - 64px)", color: "var(--color-gray-500)", fontSize: 14 }}>
         Loading analytics...
       </div>
     );
@@ -81,7 +81,7 @@ export default function AnalyticsPage() {
 
   if (!data) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "calc(100vh - 64px)", color: "#6b7280", fontSize: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "calc(100vh - 64px)", color: "var(--color-gray-500)", fontSize: 14 }}>
         Не удалось загрузить аналитику
       </div>
     );
@@ -95,18 +95,18 @@ export default function AnalyticsPage() {
   const tenant_rankings = data?.tenant_rankings || [];
 
   return (
-    <div style={{ padding: "20px 24px", background: "#f9fafb", minHeight: "calc(100vh - 64px)", overflowY: "auto" }}>
+    <div style={{ padding: "20px 24px", background: "var(--color-gray-50)", minHeight: "calc(100vh - 64px)", overflowY: "auto" }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#111827" }}>Analytics</h2>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6b7280" }}>Modera Coworking — operational overview</p>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "var(--color-gray-900)" }}>Analytics</h2>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--color-gray-500)" }}>Modera Coworking — operational overview</p>
         </div>
-        <div style={{ display: "flex", gap: 4, background: "white", padding: 4, borderRadius: 8, border: "1px solid #e5e7eb" }}>
+        <div style={{ display: "flex", gap: 4, background: "white", padding: 4, borderRadius: 8, border: "1px solid var(--color-gray-200)" }}>
           {[7, 30, 90].map((p) => (
             <button key={p} onClick={() => setPeriod(p)}
               style={{ padding: "5px 14px", borderRadius: 6, border: "none", fontSize: 13, fontWeight: 500, cursor: "pointer",
-                background: period === p ? ACCENT : "transparent", color: period === p ? "white" : "#6b7280" }}>
+                background: period === p ? ACCENT : "transparent", color: period === p ? "white" : "var(--color-gray-500)" }}>
               {p}d
             </button>
           ))}
@@ -116,7 +116,7 @@ export default function AnalyticsPage() {
       {/* KPI Row */}
       <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
         <KPICard label="Occupancy Rate" value={kpi.occupancy_rate != null ? `${kpi.occupancy_rate}%` : "—"} sub="by area (GLA)"
-          color={kpi.occupancy_rate != null ? (kpi.occupancy_rate > 70 ? "#16a34a" : kpi.occupancy_rate > 40 ? "#d97706" : "#dc2626") : "#9ca3af"} />
+          color={kpi.occupancy_rate != null ? (kpi.occupancy_rate > 70 ? "#16a34a" : kpi.occupancy_rate > 40 ? "#d97706" : "#dc2626") : "var(--color-gray-400)"} />
         <KPICard label="Active Tenants" value={kpi.active_tenants ?? 0} sub="companies" />
         <KPICard label="Bookings Today" value={kpi.bookings_today ?? 0} sub="sessions" />
         <KPICard label="Coins Spent" value={(kpi.coins_spent_month ?? 0).toLocaleString()} sub="this month" color={ACCENT} />
@@ -127,20 +127,20 @@ export default function AnalyticsPage() {
 
       {/* Vacancy overview */}
       {vacancy?.building && (
-        <div style={{ background: "white", borderRadius: 10, padding: 20, border: "1px solid #e5e7eb", marginBottom: 16 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, color: "#111827" }}>Vacancy Overview</div>
+        <div style={{ background: "white", borderRadius: 10, padding: 20, border: "1px solid var(--color-gray-200)", marginBottom: 16 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, color: "var(--color-gray-900)" }}>Vacancy Overview</div>
 
           {/* Building */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
               <span style={{ fontWeight: 500 }}>Building</span>
-              <span style={{ color: "#6b7280" }}>
+              <span style={{ color: "var(--color-gray-500)" }}>
                 {vacancy.building.occupied_area_m2} / {vacancy.building.total_area_m2} m² occupied
                 {vacancy.building.vacancy_rate != null && ` · ${vacancy.building.vacancy_rate}% vacant`}
               </span>
             </div>
             {vacancy.building.total_area_m2 > 0 && (
-              <div style={{ height: 10, background: "#f3f4f6", borderRadius: 5, overflow: "hidden" }}>
+              <div style={{ height: 10, background: "var(--color-gray-100)", borderRadius: 5, overflow: "hidden" }}>
                 <div style={{
                   height: "100%", borderRadius: 5, background: "#003DA5", transition: "width 0.5s ease",
                   width: `${100 - (vacancy.building.vacancy_rate ?? 0)}%`,
@@ -153,20 +153,20 @@ export default function AnalyticsPage() {
           {(vacancy.floors || []).map((f: any) => (
             <div key={f.floor_id} style={{ marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
-                <span style={{ color: "#374151", fontWeight: 500 }}>
+                <span style={{ color: "var(--color-gray-700)", fontWeight: 500 }}>
                   {f.floor_name}
                   <span style={{ marginLeft: 6, fontSize: 10, padding: "1px 5px", borderRadius: 4, background: f.vacancy_metric === "seats" ? "#eff6ff" : "#f0fdf4", color: f.vacancy_metric === "seats" ? "#2563eb" : "#16a34a" }}>
                     {f.unit_label}
                   </span>
                 </span>
-                <span style={{ color: "#6b7280" }}>
+                <span style={{ color: "var(--color-gray-500)" }}>
                   {f.configured
                     ? `${f.occupied} / ${f.total} ${f.unit_label} · ${f.vacancy_rate ?? 0}% vacant`
                     : "Configure floor settings"}
                 </span>
               </div>
               {f.configured && (
-                <div style={{ height: 7, background: "#f3f4f6", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ height: 7, background: "var(--color-gray-100)", borderRadius: 4, overflow: "hidden" }}>
                   <div style={{ height: "100%", borderRadius: 4, background: "#003DA5", width: `${100 - (f.vacancy_rate ?? 0)}%` }} />
                 </div>
               )}
@@ -174,7 +174,7 @@ export default function AnalyticsPage() {
           ))}
 
           {vacancy.unassigned_count > 0 && (
-            <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>{vacancy.unassigned_count} resources not assigned to a floor</div>
+            <div style={{ fontSize: 12, color: "var(--color-gray-400)", marginTop: 8 }}>{vacancy.unassigned_count} resources not assigned to a floor</div>
           )}
         </div>
       )}
@@ -182,8 +182,8 @@ export default function AnalyticsPage() {
       {/* Charts row */}
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginBottom: 16 }}>
         {/* Bookings by day */}
-        <div style={{ background: "white", borderRadius: 10, padding: 20, border: "1px solid #e5e7eb" }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, color: "#111827" }}>
+        <div style={{ background: "white", borderRadius: 10, padding: 20, border: "1px solid var(--color-gray-200)" }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, color: "var(--color-gray-900)" }}>
             Bookings per day — last {period} days
           </div>
           <ResponsiveContainer width="100%" height={200}>
@@ -200,9 +200,9 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Coin economy donut */}
-        <div style={{ background: "white", borderRadius: 10, padding: 20, border: "1px solid #e5e7eb" }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8, color: "#111827" }}>Coin Economy</div>
-          <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 12 }}>this month</div>
+        <div style={{ background: "white", borderRadius: 10, padding: 20, border: "1px solid var(--color-gray-200)" }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8, color: "var(--color-gray-900)" }}>Coin Economy</div>
+          <div style={{ fontSize: 12, color: "var(--color-gray-500)", marginBottom: 12 }}>this month</div>
           <ResponsiveContainer width="100%" height={160}>
             <PieChart>
               <Pie data={[
@@ -216,8 +216,8 @@ export default function AnalyticsPage() {
               <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
             </PieChart>
           </ResponsiveContainer>
-          <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 10, marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-            <span style={{ color: "#6b7280" }}>Cash collected</span>
+          <div style={{ borderTop: "1px solid var(--color-gray-100)", paddingTop: 10, marginTop: 4, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+            <span style={{ color: "var(--color-gray-500)" }}>Cash collected</span>
             <span style={{ fontWeight: 600, color: "#16a34a" }}>{formatMoney(coin_economy.revenue_month)}</span>
           </div>
         </div>
@@ -225,8 +225,8 @@ export default function AnalyticsPage() {
 
       {/* Room utilization */}
       {room_utilization.length > 0 && (
-        <div style={{ background: "white", borderRadius: 10, padding: 20, border: "1px solid #e5e7eb", marginBottom: 16 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, color: "#111827" }}>
+        <div style={{ background: "white", borderRadius: 10, padding: 20, border: "1px solid var(--color-gray-200)", marginBottom: 16 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, color: "var(--color-gray-900)" }}>
             Meeting Room Utilization — last {period} days
           </div>
           <ResponsiveContainer width="100%" height={Math.max(100, room_utilization.length * 40)}>
@@ -249,14 +249,14 @@ export default function AnalyticsPage() {
       {/* Bottom: Tenant rankings + Recent bookings */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 16, marginBottom: 16 }}>
         {/* Tenant rankings */}
-        <div style={{ background: "white", borderRadius: 10, padding: 20, border: "1px solid #e5e7eb" }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12, color: "#111827" }}>Tenant Activity</div>
+        <div style={{ background: "white", borderRadius: 10, padding: 20, border: "1px solid var(--color-gray-200)" }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12, color: "var(--color-gray-900)" }}>Tenant Activity</div>
           {tenant_rankings.map((t: any, i: number) => (
             <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0",
-              borderBottom: i < tenant_rankings.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+              borderBottom: i < tenant_rankings.length - 1 ? "1px solid var(--color-gray-100)" : "none" }}>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{t.company}</div>
-                <div style={{ fontSize: 11, color: "#9ca3af" }}>{t.bookings} bookings</div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-900)" }}>{t.company}</div>
+                <div style={{ fontSize: 11, color: "var(--color-gray-400)" }}>{t.bookings} bookings</div>
               </div>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: 12, fontWeight: 600,
@@ -268,41 +268,41 @@ export default function AnalyticsPage() {
             </div>
           ))}
           {tenant_rankings.length === 0 && (
-            <div style={{ fontSize: 13, color: "#9ca3af" }}>No tenants yet.</div>
+            <div style={{ fontSize: 13, color: "var(--color-gray-400)" }}>No tenants yet.</div>
           )}
         </div>
 
         {/* Recent bookings */}
-        <div style={{ background: "white", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden" }}>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: 14, color: "#111827" }}>
+        <div style={{ background: "white", borderRadius: 10, border: "1px solid var(--color-gray-200)", overflow: "hidden" }}>
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--color-gray-200)", fontWeight: 600, fontSize: 14, color: "var(--color-gray-900)" }}>
             Recent Bookings
           </div>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ background: "#f9fafb" }}>
+                <tr style={{ background: "var(--color-gray-50)" }}>
                   {["Date", "Room", "Tenant", "Time", "Coins", "Cash"].map((h) => (
-                    <th key={h} style={{ padding: "8px 14px", textAlign: "left", fontSize: 11, color: "#6b7280", fontWeight: 600, borderBottom: "1px solid #e5e7eb", whiteSpace: "nowrap" }}>{h}</th>
+                    <th key={h} style={{ padding: "8px 14px", textAlign: "left", fontSize: 11, color: "var(--color-gray-500)", fontWeight: 600, borderBottom: "1px solid var(--color-gray-200)", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {recent_bookings.map((b: any) => (
-                  <tr key={b.id} style={{ borderBottom: "1px solid #f9fafb" }}>
-                    <td style={{ padding: "9px 14px", fontSize: 12, color: "#6b7280", whiteSpace: "nowrap" }}>{b.date}</td>
-                    <td style={{ padding: "9px 14px", fontSize: 13, fontWeight: 500, color: "#111827" }}>{b.room}</td>
-                    <td style={{ padding: "9px 14px", fontSize: 12, color: "#374151" }}>{b.tenant}</td>
-                    <td style={{ padding: "9px 14px", fontSize: 12, color: "#6b7280", whiteSpace: "nowrap" }}>{b.start}–{b.end}</td>
-                    <td style={{ padding: "9px 14px", fontSize: 12, color: b.coins > 0 ? ACCENT : "#9ca3af", fontWeight: b.coins > 0 ? 600 : 400 }}>
+                  <tr key={b.id} style={{ borderBottom: "1px solid var(--color-gray-50)" }}>
+                    <td style={{ padding: "9px 14px", fontSize: 12, color: "var(--color-gray-500)", whiteSpace: "nowrap" }}>{b.date}</td>
+                    <td style={{ padding: "9px 14px", fontSize: 13, fontWeight: 500, color: "var(--color-gray-900)" }}>{b.room}</td>
+                    <td style={{ padding: "9px 14px", fontSize: 12, color: "var(--color-gray-700)" }}>{b.tenant}</td>
+                    <td style={{ padding: "9px 14px", fontSize: 12, color: "var(--color-gray-500)", whiteSpace: "nowrap" }}>{b.start}–{b.end}</td>
+                    <td style={{ padding: "9px 14px", fontSize: 12, color: b.coins > 0 ? ACCENT : "var(--color-gray-400)", fontWeight: b.coins > 0 ? 600 : 400 }}>
                       {b.coins > 0 ? b.coins : "—"}
                     </td>
-                    <td style={{ padding: "9px 14px", fontSize: 12, color: b.money_uzs > 0 ? "#16a34a" : "#9ca3af", fontWeight: b.money_uzs > 0 ? 600 : 400 }}>
+                    <td style={{ padding: "9px 14px", fontSize: 12, color: b.money_uzs > 0 ? "#16a34a" : "var(--color-gray-400)", fontWeight: b.money_uzs > 0 ? 600 : 400 }}>
                       {b.money_uzs > 0 ? formatMoney(b.money_uzs) : "—"}
                     </td>
                   </tr>
                 ))}
                 {recent_bookings.length === 0 && (
-                  <tr><td colSpan={6} style={{ padding: 24, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>No bookings yet</td></tr>
+                  <tr><td colSpan={6} style={{ padding: 24, textAlign: "center", color: "var(--color-gray-400)", fontSize: 13 }}>No bookings yet</td></tr>
                 )}
               </tbody>
             </table>
@@ -312,8 +312,8 @@ export default function AnalyticsPage() {
 
       {/* Purge bookings */}
       {canPurge && (
-        <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 16, marginTop: 8 }}>
-          <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 8 }}>Data Management</div>
+        <div style={{ borderTop: "1px solid var(--color-gray-200)", paddingTop: 16, marginTop: 8 }}>
+          <div style={{ fontSize: 12, color: "var(--color-gray-400)", marginBottom: 8 }}>Data Management</div>
           <button onClick={() => { setShowPurge(true); setPurgePassword(""); setPurgeError(""); }}
             style={{ padding: "6px 14px", border: "1px solid #fca5a5", borderRadius: 6, background: "white", color: "#dc2626", fontSize: 13, cursor: "pointer" }}>
             Purge all bookings
@@ -334,19 +334,19 @@ export default function AnalyticsPage() {
               <div style={{ fontSize: 40 }}>⚠️</div>
               <h3 style={{ margin: "8px 0 0", fontSize: 17, fontWeight: 600, color: "#dc2626" }}>Purge Booking Data</h3>
             </div>
-            <p style={{ fontSize: 13, color: "#374151", lineHeight: 1.6, marginBottom: 16 }}>
+            <p style={{ fontSize: 13, color: "var(--color-gray-700)", lineHeight: 1.6, marginBottom: 16 }}>
               This will delete <strong>ALL bookings</strong> and reset all tenant coin balances to 0. This action is irreversible.
             </p>
-            <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 12 }}>
               Enter your password to confirm
               <input type="password" value={purgePassword} onChange={(e) => { setPurgePassword(e.target.value); setPurgeError(""); }}
                 placeholder="Password"
-                style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: `1px solid ${purgeError ? "#fca5a5" : "#d1d5db"}`, borderRadius: 6, fontSize: 14, boxSizing: "border-box" }} />
+                style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: `1px solid ${purgeError ? "#fca5a5" : "var(--color-gray-300)"}`, borderRadius: 6, fontSize: 14, boxSizing: "border-box" }} />
             </label>
             {purgeError && <div style={{ fontSize: 12, color: "#dc2626", marginBottom: 8 }}>{purgeError}</div>}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button onClick={() => setShowPurge(false)}
-                style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>
+                style={{ padding: "8px 16px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>
                 Cancel
               </button>
               <button

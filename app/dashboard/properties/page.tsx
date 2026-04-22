@@ -131,7 +131,7 @@ export default function PropertiesPage() {
   const inputStyle: React.CSSProperties = {
     width: "100%",
     padding: "8px 12px",
-    border: "1px solid #d1d5db",
+    border: "1px solid var(--color-gray-300)",
     borderRadius: 6,
     fontSize: 14,
   };
@@ -140,7 +140,7 @@ export default function PropertiesPage() {
     display: "block",
     fontSize: 12,
     fontWeight: 500,
-    color: "#6b7280",
+    color: "var(--color-gray-500)",
     marginBottom: 4,
   };
 
@@ -170,9 +170,9 @@ export default function PropertiesPage() {
 
       {/* Grid */}
       {loading ? (
-        <div style={{ textAlign: "center", padding: 60, color: "#9ca3af" }}>Loading...</div>
+        <div style={{ textAlign: "center", padding: 60, color: "var(--color-gray-400)" }}>Loading...</div>
       ) : properties.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 60, color: "#9ca3af" }}>
+        <div style={{ textAlign: "center", padding: 60, color: "var(--color-gray-400)" }}>
           No properties found. Create your first property to get started.
         </div>
       ) : (
@@ -306,7 +306,7 @@ export default function PropertiesPage() {
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
               <button
                 onClick={() => setShowCreate(false)}
-                style={{ padding: "8px 18px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", fontSize: 14, cursor: "pointer" }}
+                style={{ padding: "8px 18px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", fontSize: 14, cursor: "pointer" }}
               >
                 Cancel
               </button>
@@ -339,13 +339,13 @@ export default function PropertiesPage() {
         >
           <div style={{ background: "white", borderRadius: 12, padding: 24, maxWidth: 400, width: "100%" }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0A1730", marginBottom: 8 }}>Delete property?</h3>
-            <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 20 }}>
+            <p style={{ fontSize: 14, color: "var(--color-gray-500)", marginBottom: 20 }}>
               <strong>{deleteTarget.name}</strong> will be deactivated. All data will be preserved.
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
               <button
                 onClick={() => setDeleteTarget(null)}
-                style={{ padding: "8px 18px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", fontSize: 14, cursor: "pointer" }}
+                style={{ padding: "8px 18px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", fontSize: 14, cursor: "pointer" }}
               >
                 Cancel
               </button>
@@ -422,7 +422,7 @@ function PropertyCard({ property: p, isAdmin, onClick, onDelete }: { property: B
       <div style={{ padding: "14px 16px" }}>
         <div style={{ fontSize: 17, fontWeight: 700, color: "#0A1730", marginBottom: 4 }}>{p.name}</div>
         {p.address && (
-          <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 10 }}>{p.address}</div>
+          <div style={{ fontSize: 13, color: "var(--color-gray-500)", marginBottom: 10 }}>{p.address}</div>
         )}
 
         {/* Metrics */}
@@ -430,13 +430,13 @@ function PropertyCard({ property: p, isAdmin, onClick, onDelete }: { property: B
           {(p.gla_m2 != null && p.gla_m2 > 0) && (
             <div>
               <span style={{ fontWeight: 600, color: "#0A1730" }}>{p.gla_m2.toLocaleString()}</span>
-              <span style={{ color: "#9ca3af", marginLeft: 3 }}>m2 GLA</span>
+              <span style={{ color: "var(--color-gray-400)", marginLeft: 3 }}>m2 GLA</span>
             </div>
           )}
           {(p.floors_count != null && p.floors_count > 0) && (
             <div>
               <span style={{ fontWeight: 600, color: "#0A1730" }}>{p.floors_count}</span>
-              <span style={{ color: "#9ca3af", marginLeft: 3 }}>floors</span>
+              <span style={{ color: "var(--color-gray-400)", marginLeft: 3 }}>floors</span>
             </div>
           )}
         </div>

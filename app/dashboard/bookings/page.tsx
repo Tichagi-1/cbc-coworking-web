@@ -243,7 +243,7 @@ export default function BookingsPage() {
       <div
         style={{
           width: 280,
-          borderRight: "1px solid #e5e7eb",
+          borderRight: "1px solid var(--color-gray-200)",
           overflowY: "auto",
           padding: 16,
           flexShrink: 0,
@@ -253,7 +253,7 @@ export default function BookingsPage() {
           style={{
             fontSize: 11,
             fontWeight: 600,
-            color: "#6b7280",
+            color: "var(--color-gray-500)",
             textTransform: "uppercase",
             letterSpacing: "0.05em",
             marginBottom: 12,
@@ -274,18 +274,18 @@ export default function BookingsPage() {
               border:
                 selectedRoom?.id === room.id
                   ? "2px solid #003DA5"
-                  : "1px solid #e5e7eb",
+                  : "1px solid var(--color-gray-200)",
               background:
                 selectedRoom?.id === room.id ? "#eff6ff" : "white",
             }}
           >
-            <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>
+            <div style={{ fontWeight: 600, fontSize: 14, color: "var(--color-gray-900)" }}>
               {room.name}
             </div>
-            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: "var(--color-gray-500)", marginTop: 2 }}>
               {room.capacity ?? 0} seats
             </div>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>
+            <div style={{ fontSize: 12, color: "var(--color-gray-500)" }}>
               {room.rate_coins_per_hour ?? 0}/hr coins · $
               {room.rate_money_per_hour ?? 0}/hr
             </div>
@@ -303,10 +303,10 @@ export default function BookingsPage() {
                     key={a}
                     style={{
                       fontSize: 10,
-                      background: "#f3f4f6",
+                      background: "var(--color-gray-100)",
                       padding: "2px 6px",
                       borderRadius: 4,
-                      color: "#374151",
+                      color: "var(--color-gray-700)",
                     }}
                   >
                     {a}
@@ -339,7 +339,7 @@ export default function BookingsPage() {
             <label
               style={{
                 fontSize: 11,
-                color: "#6b7280",
+                color: "var(--color-gray-500)",
                 fontWeight: 600,
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
@@ -360,7 +360,7 @@ export default function BookingsPage() {
                 width: "100%",
                 marginTop: 4,
                 padding: "7px 10px",
-                border: "1px solid #d1d5db",
+                border: "1px solid var(--color-gray-300)",
                 borderRadius: 6,
                 fontSize: 13,
               }}
@@ -391,14 +391,14 @@ export default function BookingsPage() {
             alignItems: "center",
             gap: 12,
             padding: "12px 16px",
-            borderBottom: "1px solid #e5e7eb",
+            borderBottom: "1px solid var(--color-gray-200)",
             background: "white",
           }}
         >
           <button
             onClick={() => changeDate(-1)}
             style={{
-              border: "1px solid #d1d5db",
+              border: "1px solid var(--color-gray-300)",
               borderRadius: 6,
               background: "white",
               padding: "6px 12px",
@@ -413,7 +413,7 @@ export default function BookingsPage() {
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
             style={{
-              border: "1px solid #d1d5db",
+              border: "1px solid var(--color-gray-300)",
               borderRadius: 6,
               padding: "6px 10px",
               fontSize: 14,
@@ -422,7 +422,7 @@ export default function BookingsPage() {
           <button
             onClick={() => changeDate(1)}
             style={{
-              border: "1px solid #d1d5db",
+              border: "1px solid var(--color-gray-300)",
               borderRadius: 6,
               background: "white",
               padding: "6px 12px",
@@ -437,7 +437,7 @@ export default function BookingsPage() {
               setSelectedDate(new Date().toISOString().slice(0, 10))
             }
             style={{
-              border: "1px solid #d1d5db",
+              border: "1px solid var(--color-gray-300)",
               borderRadius: 6,
               background: "white",
               padding: "6px 12px",
@@ -482,7 +482,7 @@ export default function BookingsPage() {
                     left: 0,
                     right: 0,
                     top: i * HOUR_HEIGHT,
-                    borderTop: "1px solid #e5e7eb",
+                    borderTop: "1px solid var(--color-gray-200)",
                     display: "flex",
                     alignItems: "center",
                     pointerEvents: "none",
@@ -491,7 +491,7 @@ export default function BookingsPage() {
                   <span
                     style={{
                       fontSize: 11,
-                      color: "#9ca3af",
+                      color: "var(--color-gray-400)",
                       width: 45,
                       textAlign: "right",
                       paddingRight: 8,
@@ -511,7 +511,7 @@ export default function BookingsPage() {
                     left: 45,
                     right: 0,
                     top: i * HOUR_HEIGHT + HOUR_HEIGHT / 2,
-                    borderTop: "1px dashed #f3f4f6",
+                    borderTop: "1px dashed var(--color-gray-100)",
                     pointerEvents: "none",
                   }}
                 />
@@ -589,7 +589,7 @@ export default function BookingsPage() {
                 alignItems: "center",
                 justifyContent: "center",
                 height: "100%",
-                color: "#6b7280",
+                color: "var(--color-gray-500)",
                 fontSize: 15,
               }}
             >
@@ -639,7 +639,7 @@ export default function BookingsPage() {
                 marginBottom: 16,
               }}
             >
-              <label style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)" }}>
                 From
                 <select
                   value={modalFrom}
@@ -655,7 +655,7 @@ export default function BookingsPage() {
                     width: "100%",
                     marginTop: 4,
                     padding: "8px 10px",
-                    border: "1px solid #d1d5db",
+                    border: "1px solid var(--color-gray-300)",
                     borderRadius: 6,
                     fontSize: 14,
                     boxSizing: "border-box",
@@ -670,7 +670,7 @@ export default function BookingsPage() {
                     ))}
                 </select>
               </label>
-              <label style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)" }}>
                 To
                 <select
                   value={modalTo}
@@ -680,7 +680,7 @@ export default function BookingsPage() {
                     width: "100%",
                     marginTop: 4,
                     padding: "8px 10px",
-                    border: "1px solid #d1d5db",
+                    border: "1px solid var(--color-gray-300)",
                     borderRadius: 6,
                     fontSize: 14,
                     boxSizing: "border-box",
@@ -750,7 +750,7 @@ export default function BookingsPage() {
                   }}
                   style={{
                     padding: "8px 16px",
-                    border: "1px solid #d1d5db",
+                    border: "1px solid var(--color-gray-300)",
                     borderRadius: 6,
                     background: "white",
                     cursor: "pointer",

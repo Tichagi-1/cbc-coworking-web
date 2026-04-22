@@ -84,10 +84,10 @@ export default function TenantMembersPage() {
 
   const inputStyle: React.CSSProperties = {
     display: "block", width: "100%", marginTop: 4, padding: "8px 10px",
-    border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
+    border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14, boxSizing: "border-box",
   };
   const labelStyle: React.CSSProperties = {
-    fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12,
+    fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 12,
   };
 
   return (
@@ -116,7 +116,7 @@ export default function TenantMembersPage() {
       )}
 
       {loading ? (
-        <div style={{ color: "#9ca3af", fontSize: 14 }}>Loading...</div>
+        <div style={{ color: "var(--color-gray-400)", fontSize: 14 }}>Loading...</div>
       ) : members.length === 0 ? (
         <div className="text-sm text-gray-500 p-8 border border-dashed border-gray-300 rounded-md">
           No members found for this tenant.
@@ -155,7 +155,7 @@ export default function TenantMembersPage() {
                     {m.is_active ? (
                       <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 9999, fontSize: 11, fontWeight: 600, background: "#d1fae5", color: "#065f46" }}>YES</span>
                     ) : (
-                      <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 9999, fontSize: 11, fontWeight: 600, background: "#f3f4f6", color: "#6b7280" }}>NO</span>
+                      <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 9999, fontSize: 11, fontWeight: 600, background: "var(--color-gray-100)", color: "var(--color-gray-500)" }}>NO</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-center">
@@ -201,13 +201,13 @@ export default function TenantMembersPage() {
               <input type="tel" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="+998 ..." style={inputStyle} />
             </label>
 
-            <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
               <input type="checkbox" checked={createInSalto} onChange={(e) => setCreateInSalto(e.target.checked)} />
               Create in Salto KS automatically
             </label>
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => setShowAdd(false)} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>
+              <button onClick={() => setShowAdd(false)} style={{ padding: "8px 16px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>
                 Cancel
               </button>
               <button onClick={handleAdd} disabled={saving || !newName.trim()}

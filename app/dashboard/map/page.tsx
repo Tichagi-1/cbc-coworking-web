@@ -770,7 +770,7 @@ export default function MapPage() {
                 type="date"
                 value={historyDate || new Date().toISOString().slice(0, 10)}
                 onChange={(e) => setHistoryDate(e.target.value)}
-                style={{ border: "1px solid #d1d5db", borderRadius: 6, padding: "5px 8px", fontSize: 13 }}
+                style={{ border: "1px solid var(--color-gray-300)", borderRadius: 6, padding: "5px 8px", fontSize: 13 }}
               />
               {[
                 { label: "Today", days: 0 },
@@ -783,7 +783,7 @@ export default function MapPage() {
                   <button
                     key={label}
                     onClick={() => setHistoryDate(d.toISOString().slice(0, 10))}
-                    style={{ padding: "5px 10px", fontSize: 12, border: "1px solid #e5e7eb", borderRadius: 4, background: "white", cursor: "pointer", color: "#6b7280" }}
+                    style={{ padding: "5px 10px", fontSize: 12, border: "1px solid var(--color-gray-200)", borderRadius: 4, background: "white", cursor: "pointer", color: "var(--color-gray-500)" }}
                   >
                     {label}
                   </button>
@@ -824,12 +824,12 @@ export default function MapPage() {
           />
         ) : (
           <>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "white", borderBottom: "1px solid #e5e7eb", fontSize: 12 }}>
-            <button onClick={() => floorCanvasRef.current?.zoomIn()} style={{ padding: "2px 8px", border: "1px solid #e5e7eb", borderRadius: 4, background: "white", cursor: "pointer", fontSize: 14 }}>+</button>
-            <span style={{ minWidth: 36, textAlign: "center", color: "#6b7280" }}>{zoomLevel}%</span>
-            <button onClick={() => floorCanvasRef.current?.zoomOut()} style={{ padding: "2px 8px", border: "1px solid #e5e7eb", borderRadius: 4, background: "white", cursor: "pointer", fontSize: 14 }}>−</button>
-            <button onClick={() => floorCanvasRef.current?.resetZoom()} style={{ padding: "2px 6px", border: "1px solid #e5e7eb", borderRadius: 4, background: "white", cursor: "pointer", fontSize: 11, color: "#6b7280" }}>Reset</button>
-            <span style={{ fontSize: 10, color: "#9ca3af", marginLeft: 4 }}>Scroll to zoom · Alt+drag to pan</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: "white", borderBottom: "1px solid var(--color-gray-200)", fontSize: 12 }}>
+            <button onClick={() => floorCanvasRef.current?.zoomIn()} style={{ padding: "2px 8px", border: "1px solid var(--color-gray-200)", borderRadius: 4, background: "white", cursor: "pointer", fontSize: 14 }}>+</button>
+            <span style={{ minWidth: 36, textAlign: "center", color: "var(--color-gray-500)" }}>{zoomLevel}%</span>
+            <button onClick={() => floorCanvasRef.current?.zoomOut()} style={{ padding: "2px 8px", border: "1px solid var(--color-gray-200)", borderRadius: 4, background: "white", cursor: "pointer", fontSize: 14 }}>−</button>
+            <button onClick={() => floorCanvasRef.current?.resetZoom()} style={{ padding: "2px 6px", border: "1px solid var(--color-gray-200)", borderRadius: 4, background: "white", cursor: "pointer", fontSize: 11, color: "var(--color-gray-500)" }}>Reset</button>
+            <span style={{ fontSize: 10, color: "var(--color-gray-400)", marginLeft: 4 }}>Scroll to zoom · Alt+drag to pan</span>
           </div>
           <div className="floor-canvas-wrapper">
             <FloorCanvas
@@ -1035,14 +1035,14 @@ export default function MapPage() {
               disabled={deleteFloorSubmitting || !currentFloor?.floor_plan_url}
               style={{
                 width: "100%", textAlign: "left", padding: 14, borderRadius: 8,
-                border: "1px solid #e5e7eb", background: "white", cursor: "pointer",
+                border: "1px solid var(--color-gray-200)", background: "white", cursor: "pointer",
                 marginBottom: 10, opacity: deleteFloorSubmitting || !currentFloor?.floor_plan_url ? 0.5 : 1,
               }}
             >
-              <div style={{ fontSize: 14, fontWeight: 600, color: "#374151" }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-gray-700)" }}>
                 Remove floor plan image only
               </div>
-              <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: "var(--color-gray-500)", marginTop: 4 }}>
                 Keeps all zones, resources, and bookings. You can re-upload a new image.
               </div>
             </button>
@@ -1069,7 +1069,7 @@ export default function MapPage() {
               <button
                 onClick={() => setDeleteFloorOpen(false)}
                 disabled={deleteFloorSubmitting}
-                style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}
+                style={{ padding: "8px 16px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}
               >
                 Cancel
               </button>
@@ -1120,30 +1120,30 @@ function FloorSettingsModal({
           Floor Settings — {floor.name || `Floor ${floor.number}`}
         </h3>
 
-        <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+        <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 12 }}>
           Total Area (m²)
           <input type="number" min="0" step="0.5" value={totalArea}
             onChange={(e) => setTotalArea(e.target.value)}
-            style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }} />
+            style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }} />
         </label>
 
-        <label style={{ fontSize: 13, fontWeight: 500, color: "#374151", display: "block", marginBottom: 12 }}>
+        <label style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 12 }}>
           Total Seats
           <input type="number" min="0" value={totalSeats}
             onChange={(e) => setTotalSeats(e.target.value)}
-            style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid #d1d5db", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }} />
+            style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid var(--color-gray-300)", borderRadius: 6, fontSize: 14, boxSizing: "border-box" }} />
         </label>
 
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: "#374151", marginBottom: 6 }}>Vacancy Metric</div>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", marginBottom: 6 }}>Vacancy Metric</div>
           <div style={{ display: "flex", gap: 8 }}>
             {(["area", "seats"] as const).map((m) => (
               <button key={m} type="button" onClick={() => setMetric(m)}
                 style={{
                   flex: 1, padding: "8px 0", borderRadius: 6, cursor: "pointer", fontSize: 13,
-                  border: `2px solid ${metric === m ? "#003DA5" : "#e5e7eb"}`,
+                  border: `2px solid ${metric === m ? "#003DA5" : "var(--color-gray-200)"}`,
                   background: metric === m ? "#eff6ff" : "white",
-                  color: metric === m ? "#003DA5" : "#6b7280",
+                  color: metric === m ? "#003DA5" : "var(--color-gray-500)",
                   fontWeight: metric === m ? 600 : 400,
                 }}>
                 {m === "area" ? "📐 By Area (m²)" : "💺 By Seats"}
@@ -1153,7 +1153,7 @@ function FloorSettingsModal({
         </div>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid #d1d5db", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Cancel</button>
+          <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid var(--color-gray-300)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 14 }}>Cancel</button>
           <button
             disabled={saving}
             onClick={async () => {
