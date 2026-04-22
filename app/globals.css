@@ -1,30 +1,132 @@
+/* ============================================================
+   PASTE-READY: app/globals.css  (Tailwind v4, @theme syntax)
+
+   This replaces your existing globals.css in its entirety.
+   Works with Tailwind v4 — NO tailwind.config.ts required.
+   All design tokens live in a single @theme block and Tailwind
+   generates utility classes (bg-gray-100, text-cbc-blue, etc.)
+   directly from these values.
+
+   PAIRS WITH: app/layout.tsx next/font setup.
+   ============================================================ */
+
 @import "tailwindcss";
 
+/* ============================================================
+   @theme — Tailwind v4 design token source of truth
+   Every custom property declared here becomes a utility class.
+   ============================================================ */
+@theme {
+  /* ---- Fonts ---- */
+  --font-sans: var(--font-roboto), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-roboto-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ---- CBC corporate palette ---- */
+  --color-midnight:      #0A1730;
+  --color-cb-blue:       #012169;
+  --color-cbc-blue:      #003DA5;   /* PRIMARY — CTAs, active nav, focus */
+  --color-cbc-blue-hov:  #0057B8;
+  --color-bright-blue:   #1F69FF;
+  --color-celestial:     #418FDE;
+  --color-glacier:       #DAE1E8;
+  --color-icy-blue:      #F0F5FB;
+
+  /* ---- CBC-tinted neutrals (override Tailwind default gray) ----
+     Hue 215°, derived midnight → glacier. All steps ≤ 500 hit
+     WCAG AA on white. Gray-400 is AA-large / decorative only. */
+  --color-gray-50:  #F5F8FC;
+  --color-gray-100: #EEF2F7;
+  --color-gray-200: #E1E7EF;
+  --color-gray-300: #C8D1DD;
+  --color-gray-400: #9CA7B8;
+  --color-gray-500: #68738C;
+  --color-gray-600: #4E5970;
+  --color-gray-700: #363F54;
+  --color-gray-800: #1F2839;
+  --color-gray-900: #0A1730;
+
+  /* ---- Radii ---- */
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-xl:  10px;
+  --radius-2xl: 12px;
+
+  /* ---- Shadows ---- */
+  --shadow-card-hover: 0 8px 24px rgba(10,23,48,0.15);
+  --shadow-modal:      0 20px 60px rgba(10,23,48,0.30);
+  --shadow-slideout:  -4px 0 30px rgba(10,23,48,0.15);
+  --shadow-tab:        0 1px 2px rgba(10,23,48,0.10);
+}
+
+/* ============================================================
+   :root — semantic aliases + domain colors
+   (kept as CSS vars, not utility tokens — referenced from
+   component-level inline styles throughout the product)
+   ============================================================ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Back-compat aliases — existing surfaces reference these */
+  --cbc-midnight:    var(--color-midnight);
+  --cbc-blue:        var(--color-cbc-blue);
+  --cbc-bright-blue: var(--color-cbc-blue-hov);
 
-  /* CBC brand */
-  --cbc-midnight: #13232E;
-  --cbc-blue: #003DA5;
-  --cbc-bright-blue: #0057B8;
+  /* Surfaces */
+  --bg-app:         var(--color-gray-50);
+  --bg-surface:     #FFFFFF;
+  --bg-muted:       var(--color-gray-100);
+  --bg-subtle:      var(--color-gray-50);
+  --border-default: var(--color-gray-200);
+  --border-input:   var(--color-gray-300);
+  --border-hover:   var(--color-gray-300);
+
+  /* Text */
+  --text-primary:   var(--color-gray-800);
+  --text-body:      var(--color-gray-700);
+  --text-secondary: var(--color-gray-600);
+  --text-muted:     var(--color-gray-500);
+  --text-subtle:    var(--color-gray-400);
+  --text-on-dark:   #FFFFFF;
+
+  /* Status */
+  --success: #16a34a; --success-bg: #f0fdf4; --success-br: #bbf7d0;
+  --warning: #d97706; --warning-bg: #fef3c7; --warning-br: #fcd34d;
+  --danger:  #dc2626; --danger-bg:  #fef2f2; --danger-br:  #fecaca;
+  --info:    #0369a1; --info-bg:    #f0f9ff; --info-br:    #bae6fd;
+
+  /* Domain — coin balance tone */
+  --balance-healthy:  #059669;
+  --balance-warning:  #D97706;
+  --balance-critical: #DC2626;
+
+  /* Domain — property class */
+  --class-a-plus: #16a34a;
+  --class-a:      #22c55e;
+  --class-b-plus: #eab308;
+  --class-b:      #facc15;
+  --class-c:      #9ca3af;
+
+  /* Scrim overlays */
+  --overlay-scrim:       rgba(10,23,48,0.60);
+  --overlay-scrim-light: rgba(10,23,48,0.40);
+
+  /* Shell geometry */
+  --sidebar-expanded:  220px;
+  --sidebar-collapsed:  64px;
+  --topbar-height:      56px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-
-  /* CBC brand exposed as Tailwind utilities (bg-cbc-midnight, text-cbc-blue, …) */
-  --color-cbc-midnight: var(--cbc-midnight);
-  --color-cbc-blue: var(--cbc-blue);
-  --color-cbc-bright-blue: var(--cbc-bright-blue);
-
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* ============================================================
+   Base element styles
+   ============================================================ */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--text-body);
+  background: var(--bg-app);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+code, .mono, pre {
+  font-family: var(--font-mono);
 }
