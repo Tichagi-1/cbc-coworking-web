@@ -573,8 +573,7 @@ export default function BookingsPage() {
                       setShowModal(true);
                     }}
                   >
-                    {startT} – {endT}
-                    {b.coins_charged > 0 && ` · ${b.coins_charged} coins`}
+                    {b.tenant_name || "—"} — {startT}–{endT}
                   </div>
                 );
               })}
@@ -654,6 +653,60 @@ export default function BookingsPage() {
               {editBooking ? "Edit Booking" : "New Booking"} —{" "}
               {selectedRoom?.name}
             </h3>
+
+            {editBooking && (
+              <div
+                style={{
+                  padding: "12px 14px",
+                  background: "var(--color-gray-50)",
+                  border: "1px solid var(--color-gray-200)",
+                  borderRadius: 8,
+                  marginBottom: 16,
+                  fontSize: 13,
+                  color: "var(--color-gray-700)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
+                <div>
+                  <strong>Арендатор:</strong>{" "}
+                  {editBooking.tenant_name || "—"}
+                </div>
+                <div>
+                  <strong>Комната:</strong> {selectedRoom?.name || "—"}
+                </div>
+                <div>
+                  <strong>Время:</strong>{" "}
+                  {editBooking.start_time.slice(11, 16)}–
+                  {editBooking.end_time.slice(11, 16)}{" "}
+                  <span style={{ color: "var(--color-gray-500)" }}>
+                    ({editBooking.start_time.slice(0, 10)})
+                  </span>
+                </div>
+                <div>
+                  <strong>Стоимость:</strong>{" "}
+                  {editBooking.coins_charged > 0 && (
+                    <>{Math.round(editBooking.coins_charged).toLocaleString()} coins</>
+                  )}
+                  {editBooking.coins_charged > 0 &&
+                    editBooking.money_charged_uzs > 0 &&
+                    " + "}
+                  {editBooking.money_charged_uzs > 0 && (
+                    <>
+                      {Math.round(editBooking.money_charged_uzs).toLocaleString()}{" "}
+                      {getCurrencySymbol()}
+                    </>
+                  )}
+                  {editBooking.coins_charged === 0 &&
+                    editBooking.money_charged_uzs === 0 &&
+                    "FREE"}
+                </div>
+                <div>
+                  <strong>Способ оплаты:</strong> {editBooking.payment_type}
+                </div>
+              </div>
+            )}
 
             <div
               style={{
