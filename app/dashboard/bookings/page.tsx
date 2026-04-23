@@ -58,7 +58,21 @@ export default function BookingsPage() {
   const [modalTo, setModalTo] = useState("10:00");
   const [editBooking, setEditBooking] = useState<Booking | null>(null);
   const [saving, setSaving] = useState(false);
-  const [costPreview, setCostPreview] = useState("");
+  type PreviewData = {
+    coins_used: number;
+    cash_charged: number;
+    discount_pct: number;
+    discount_reason: string | null;
+    coin_balance_after: number;
+    duration_hours: number;
+    payment_type: "coins" | "money";
+  };
+  type PreviewState =
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "ok"; data: PreviewData }
+    | { status: "error"; message: string };
+  const [preview, setPreview] = useState<PreviewState>({ status: "idle" });
   const [role, setRole] = useState("");
 
   // Drag state
@@ -122,41 +136,51 @@ export default function BookingsPage() {
     loadBookings();
   }, [loadBookings]);
 
-  // Cost preview
+  // Cost preview — server-driven (POST /bookings/preview, debounced 300ms).
+  // Replaced the previous naive client-side calc that had no awareness of
+  // tenant.is_resident, plan.meeting_discount_*, or resource.resident_discount_pct
+  // and silently disagreed with the actual billed amount for residents.
   useEffect(() => {
-    if (!selectedRoom) return;
+    if (!selectedRoom || !selectedTenantId) {
+      setPreview({ status: "idle" });
+      return;
+    }
     const fromMin = timeToMin(modalFrom);
     const toMin = timeToMin(modalTo);
     if (toMin <= fromMin) {
-      setCostPreview("End must be after start");
+      setPreview({ status: "error", message: "End must be after start" });
       return;
     }
-    const durMin = toMin - fromMin;
-    if (durMin < 5) {
-      setCostPreview("Minimum 5 minutes");
+    if (toMin - fromMin < 5) {
+      setPreview({ status: "error", message: "Minimum 5 minutes" });
       return;
     }
-    const durH = durMin / 60;
-    const coinsRate = selectedRoom.rate_coins_per_hour ?? 0;
-    const moneyRate = selectedRoom.rate_money_per_hour ?? 0;
-    const coinsNeeded = Math.round(durH * coinsRate);
-    if (coinsRate === 0 && moneyRate === 0) {
-      setCostPreview(`${Math.round(durMin)} min — FREE`);
-      return;
-    }
-    if (coinsNeeded <= coinBalance) {
-      setCostPreview(
-        `${Math.round(durMin)} min: ${coinsNeeded} coins (have ${Math.round(coinBalance)}) — FREE`
-      );
-    } else {
-      const remaining = coinsNeeded - coinBalance;
-      const ratio = coinsRate > 0 ? moneyRate / coinsRate : 0;
-      const moneyUzs = Math.round(remaining * ratio);
-      setCostPreview(
-        `${Math.round(durMin)} min: ${Math.round(coinBalance)} coins + ${moneyUzs.toLocaleString()} ${getCurrencySymbol()}`
-      );
-    }
-  }, [modalFrom, modalTo, selectedRoom, coinBalance]);
+
+    setPreview({ status: "loading" });
+    const startISO = `${selectedDate}T${modalFrom}:00`;
+    const endISO = `${selectedDate}T${modalTo}:00`;
+
+    const handle = setTimeout(async () => {
+      try {
+        const res = await api.post<PreviewData>("/bookings/preview", {
+          resource_id: selectedRoom.id,
+          tenant_id: selectedTenantId,
+          start_time: startISO,
+          end_time: endISO,
+        });
+        setPreview({ status: "ok", data: res.data });
+      } catch (e) {
+        const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+        const msg = (e as { message?: string })?.message;
+        setPreview({
+          status: "error",
+          message: detail || msg || "Unable to calculate — please review time range",
+        });
+      }
+    }, 300);
+
+    return () => clearTimeout(handle);
+  }, [modalFrom, modalTo, selectedRoom, selectedTenantId, selectedDate]);
 
   const handleBook = async () => {
     if (!selectedRoom || !selectedTenantId) return;
@@ -697,19 +721,53 @@ export default function BookingsPage() {
               </label>
             </div>
 
-            {costPreview && (
+            {preview.status !== "idle" && (
               <div
                 style={{
                   padding: "10px 14px",
-                  background: "#f0f9ff",
+                  background: preview.status === "error" ? "#fef2f2" : "#f0f9ff",
                   borderRadius: 8,
                   fontSize: 13,
-                  color: "#0369a1",
+                  color: preview.status === "error" ? "#dc2626" : "#0369a1",
                   marginBottom: 16,
-                  border: "1px solid #bae6fd",
+                  border: `1px solid ${preview.status === "error" ? "#fecaca" : "#bae6fd"}`,
+                  opacity: preview.status === "loading" ? 0.6 : 1,
+                  transition: "opacity 120ms ease",
                 }}
               >
-                {costPreview}
+                {preview.status === "loading" && "Calculating cost…"}
+                {preview.status === "error" && preview.message}
+                {preview.status === "ok" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div>
+                      {Math.round(preview.data.duration_hours * 60)} min
+                      {" — "}
+                      {preview.data.coins_used > 0 && (
+                        <>
+                          <strong>{Math.round(preview.data.coins_used)}</strong> coins
+                          {preview.data.cash_charged > 0 && " + "}
+                        </>
+                      )}
+                      {preview.data.cash_charged > 0 && (
+                        <>
+                          <strong>{Math.round(preview.data.cash_charged).toLocaleString()}</strong> {getCurrencySymbol()}
+                        </>
+                      )}
+                      {preview.data.coins_used === 0 && preview.data.cash_charged === 0 && "FREE"}
+                    </div>
+                    {preview.data.discount_pct > 0 && (
+                      <div
+                        title={preview.data.discount_reason ?? ""}
+                        style={{ color: "#16a34a", fontSize: 12 }}
+                      >
+                        Resident discount −{preview.data.discount_pct}%
+                      </div>
+                    )}
+                    <div style={{ fontSize: 12, color: "var(--color-gray-500)" }}>
+                      Coin balance after: {Math.round(preview.data.coin_balance_after)}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -762,7 +820,7 @@ export default function BookingsPage() {
                 {!editBooking && (
                   <button
                     onClick={handleBook}
-                    disabled={saving || !selectedRoom}
+                    disabled={saving || !selectedRoom || preview.status === "error"}
                     style={{
                       padding: "8px 16px",
                       background: "#003DA5",
