@@ -44,7 +44,7 @@ export default function LoginPage() {
 
       const role = res.data.role;
       if (role === "tenant") {
-        router.push("/dashboard/workspace");
+        router.push("/dashboard/bookings");
       } else {
         router.push("/dashboard/properties");
       }

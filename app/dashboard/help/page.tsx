@@ -105,12 +105,12 @@ export default function HelpPage() {
       ),
     },
     {
-      id: "workspace",
-      title: "Workspace & Bookings",
+      id: "bookings",
+      title: "Bookings",
       perm: "view_workspace",
       content: () => (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <P><B>Workspace calendar:</B> Shows all bookings for meeting rooms on a weekly calendar view.</P>
+          <P><B>Bookings calendar:</B> Shows all bookings for meeting rooms on a weekly calendar view.</P>
           <P><B>Creating a booking:</B> Select a meeting room, choose date and time slot, select payment method (coins or money).</P>
           <P><B>Coin system:</B> Tenants receive coins monthly based on their tariff plan (percentage of monthly rate). Coins are used to book meeting rooms. Unused coins reset on the 1st of each month.</P>
           <P><B>Cancellation:</B> Bookings can be cancelled. Coins are refunded automatically.</P>
