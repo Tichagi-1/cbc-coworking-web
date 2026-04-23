@@ -4,14 +4,11 @@ import { FormEvent, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
 import { formatMoney } from "@/lib/currency";
-import { useProperty } from "@/lib/PropertyContext";
-import type { BillingMode, Plan } from "@/lib/types";
+import type { BillingMode, Building, Plan } from "@/lib/types";
 
 export default function PlansPage() {
-  const { propertyId: BUILDING_ID } = useProperty();
-
   const EMPTY_PLAN: Omit<Plan, "id" | "created_at"> = {
-    building_id: BUILDING_ID,
+    building_id: 0,
     name: "",
     billing_mode: "per_unit",
     base_rate_uzs: 0,
@@ -25,6 +22,7 @@ export default function PlansPage() {
   };
 
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [availableBuildings, setAvailableBuildings] = useState<Building[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +31,7 @@ export default function PlansPage() {
   const canManage = hasPermission("manage_plans");
 
   // Form state
+  const [buildingId, setBuildingId] = useState<number | "">("");
   const [name, setName] = useState("");
   const [billingMode, setBillingMode] = useState<BillingMode>("per_unit");
   const [baseRate, setBaseRate] = useState("0");
@@ -45,9 +44,9 @@ export default function PlansPage() {
 
   async function loadPlans() {
     try {
-      const res = await api.get<Plan[]>("/plans", {
-        params: { building_id: BUILDING_ID },
-      });
+      // Sprint 1.8a: drop the per-property filter — admins now see plans
+      // across all buildings. The building name renders in the list row.
+      const res = await api.get<Plan[]>("/plans");
       setPlans(res.data);
     } catch (e) {
       setError((e as Error)?.message || "Failed to load plans");
@@ -56,10 +55,11 @@ export default function PlansPage() {
 
   useEffect(() => {
     loadPlans();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [BUILDING_ID]);
+    api.get<Building[]>("/buildings/").then((r) => setAvailableBuildings(r.data)).catch(() => {});
+  }, []);
 
   function populateForm(p: Omit<Plan, "id" | "created_at">) {
+    setBuildingId(p.building_id || "");
     setName(p.name);
     setBillingMode(p.billing_mode);
     setBaseRate(String(p.base_rate_uzs));
@@ -85,11 +85,15 @@ export default function PlansPage() {
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
+    if (typeof buildingId !== "number" || buildingId <= 0) {
+      setError("Выберите здание");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
       const body = {
-        building_id: BUILDING_ID,
+        building_id: buildingId,
         name: name.trim(),
         billing_mode: billingMode,
         base_rate_uzs: parseFloat(baseRate) || 0,
@@ -103,16 +107,17 @@ export default function PlansPage() {
       };
 
       if (isNew) {
-        const res = await api.post<Plan>("/plans", body);
+        await api.post<Plan>("/plans", body);
         await loadPlans();
-        setSelectedId(res.data.id);
-        setIsNew(false);
         showToast("Plan created");
       } else if (selectedId) {
         await api.patch(`/plans/${selectedId}`, body);
         await loadPlans();
         showToast("Plan updated");
       }
+      // Sprint 1.8a fix 1: close the form after successful save.
+      setSelectedId(null);
+      setIsNew(false);
     } catch (e: unknown) {
       const detail =
         (e as { response?: { data?: { detail?: string } } })?.response?.data
@@ -220,6 +225,9 @@ export default function PlansPage() {
                     </span>
                   )}
                 </div>
+                <div className="text-xs text-gray-500 truncate mb-1">
+                  {p.building_name ?? `Building ${p.building_id}`}
+                </div>
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-semibold">
                     {p.billing_mode === "per_unit" ? "Per Unit" : "Per Seat"}
@@ -265,6 +273,26 @@ export default function PlansPage() {
                   placeholder="e.g. Enterprise, Startup, Freelancer"
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                 />
+              </div>
+
+              {/* Building */}
+              <div>
+                <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+                  Здание
+                </label>
+                <select
+                  required
+                  value={buildingId === "" ? "" : String(buildingId)}
+                  onChange={(e) => setBuildingId(e.target.value ? Number(e.target.value) : "")}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
+                >
+                  <option value="">— Выберите здание —</option>
+                  {availableBuildings.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Billing mode */}

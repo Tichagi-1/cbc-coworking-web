@@ -220,6 +220,11 @@ export interface Booking {
   id: number;
   resource_id: number | null;
   tenant_id: number;
+  /** Server-populated by GET /bookings via selectinload(Booking.tenant)
+   *  (Sprint 1.8a). Falls back to contact_name if company_name is null;
+   *  null only on responses from create/preview/PATCH where the field
+   *  isn't projected. */
+  tenant_name?: string | null;
   start_time: string; // ISO
   end_time: string; // ISO
   payment_type: BookingPaymentType;
