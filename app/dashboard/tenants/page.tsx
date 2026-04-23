@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import { api } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
-import type { Tenant, TenantUnitSummary } from "@/lib/types";
+import type { Tenant, TenantUnitSummary, Plan } from "@/lib/types";
 import { formatMoney } from "@/lib/currency";
 
 type TenantWithUnits = Tenant;
@@ -870,8 +870,14 @@ function EditTenantModal({ tenant, onClose, onSaved }: { tenant: Tenant; onClose
   const [contactName, setContactName] = useState(tenant.contact_name || "");
   const [notes, setNotes] = useState(tenant.notes || "");
   const [isResident, setIsResident] = useState(tenant.is_resident);
+  const [planId, setPlanId] = useState<number | null>(tenant.plan_id ?? null);
+  const [availablePlans, setAvailablePlans] = useState<Plan[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.get<Plan[]>("/plans").then((r) => setAvailablePlans(r.data)).catch(() => {});
+  }, []);
 
   async function handleSave() {
     setSaving(true);
@@ -881,6 +887,7 @@ function EditTenantModal({ tenant, onClose, onSaved }: { tenant: Tenant; onClose
         company_name: companyName.trim(),
         contact_name: contactName.trim() || null,
         is_resident: isResident,
+        plan_id: planId,
         notes: notes.trim() || null,
       });
       await onSaved();
@@ -921,6 +928,24 @@ function EditTenantModal({ tenant, onClose, onSaved }: { tenant: Tenant; onClose
         <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8 }}>
           <input type="checkbox" checked={isResident} onChange={(e) => setIsResident(e.target.checked)} />
           Is Resident
+        </label>
+
+        <label style={labelStyle}>
+          План
+          <select
+            value={planId ?? ""}
+            onChange={(e) => setPlanId(e.target.value ? Number(e.target.value) : null)}
+            style={inputStyle}
+          >
+            <option value="">— Без плана —</option>
+            {availablePlans
+              .filter((p) => p.is_active)
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} — {p.building_name ?? `Building ${p.building_id}`}
+                </option>
+              ))}
+          </select>
         </label>
 
         <div style={{ background: "var(--color-gray-50)", border: "1px solid var(--color-gray-200)", borderRadius: 6, padding: 10, marginTop: 8, fontSize: 12, color: "var(--color-gray-500)" }}>
