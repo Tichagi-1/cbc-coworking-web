@@ -167,8 +167,11 @@ export interface Tenant {
   tenant_type: string;
   company_name: string;
   contact_name: string | null;
-  // Computed from assigned resources (read-only)
+  // Plan binding (Sprint 1.5)
+  plan_id: number | null;
+  // Plan name resolved server-side from tenant.plan; null if no plan bound
   plan_type: string | null;
+  // Computed from assigned resources (read-only)
   total_monthly_rate: number;
   monthly_coin_allowance: number;
   monthly_rate: number; // alias of total_monthly_rate for back-compat
@@ -184,6 +187,7 @@ export interface Tenant {
   unit_count?: number;
 }
 
+
 export interface AvailabilitySlot {
   time: string; // "HH:MM"
   available: boolean;
@@ -194,6 +198,9 @@ export type BillingMode = "per_unit" | "per_seat";
 export interface Plan {
   id: number;
   building_id: number;
+  /** Server-populated convenience field (Sprint 1.5). Not present on
+   *  client-side templates for new plans before they hit the server. */
+  building_name?: string | null;
   name: string;
   billing_mode: BillingMode;
   base_rate_uzs: number;
