@@ -37,6 +37,17 @@ const labelStyle: React.CSSProperties = {
   fontSize: 13, fontWeight: 500, color: "var(--color-gray-700)", display: "block", marginBottom: 14,
 };
 
+// v2: hour-only <select> options. Keeping these in module scope (no
+// state dependency) so they're not rebuilt every render. Backend regex
+// gates: start 00:00..23:00, end 01:00..24:00. '24:00' is the
+// end-of-day sentinel honoured by the booking-window service.
+const startHourOptions = Array.from({ length: 24 }, (_, i) =>
+  `${String(i).padStart(2, "0")}:00`
+); // 00:00 .. 23:00
+const endHourOptions = Array.from({ length: 24 }, (_, i) =>
+  `${String(i + 1).padStart(2, "0")}:00`
+); // 01:00 .. 24:00
+
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>("General");
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -241,33 +252,33 @@ export default function SettingsPage() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <label style={labelStyle}>
               Working Hours Start
-              <input
-                type="time"
-                step={3600}
+              <select
                 value={settings.working_hours_start || "08:00"}
-                onChange={(e) => setSettings((p) => ({ ...p, working_hours_start: e.target.value }))}
-                onBlur={() =>
-                  saveBookingSettings({
-                    working_hours_start: settings.working_hours_start || "08:00",
-                  })
-                }
+                onChange={(e) => {
+                  setSettings((p) => ({ ...p, working_hours_start: e.target.value }));
+                  saveBookingSettings({ working_hours_start: e.target.value });
+                }}
                 style={inputStyle}
-              />
+              >
+                {startHourOptions.map((h) => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+              </select>
             </label>
             <label style={labelStyle}>
               Working Hours End
-              <input
-                type="time"
-                step={3600}
+              <select
                 value={settings.working_hours_end || "20:00"}
-                onChange={(e) => setSettings((p) => ({ ...p, working_hours_end: e.target.value }))}
-                onBlur={() =>
-                  saveBookingSettings({
-                    working_hours_end: settings.working_hours_end || "20:00",
-                  })
-                }
+                onChange={(e) => {
+                  setSettings((p) => ({ ...p, working_hours_end: e.target.value }));
+                  saveBookingSettings({ working_hours_end: e.target.value });
+                }}
                 style={inputStyle}
-              />
+              >
+                {endHourOptions.map((h) => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+              </select>
             </label>
           </div>
           <label style={labelStyle}>
