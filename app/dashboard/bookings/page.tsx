@@ -14,14 +14,6 @@ const HOUR_HEIGHT = 60;
 const DEFAULT_DAY_START = 8;
 const DEFAULT_DAY_END = 20;
 
-// '24:00' from settings is allowed as the upper bound — parsed to 24 here
-// and used as a 24-hour upper edge in pixel calculations.
-const parseHourString = (s: string, fallback: number): number => {
-  if (s === "24:00") return 24;
-  const [h] = s.split(":").map(Number);
-  return Number.isFinite(h) ? h : fallback;
-};
-
 const minToTime = (min: number) => {
   const h = Math.floor(min / 60)
     .toString()
@@ -74,28 +66,47 @@ export default function BookingsPage() {
 
   // Working-hours window — fetched on mount from GET /settings/booking.
   // Defaults render fine on first paint (and if the fetch fails).
+  // Raw API response lands here. Render paths use the `effective*`
+  // values below, which fall back to 8/20 if the stored range is bogus.
   const [dayStart, setDayStart] = useState(DEFAULT_DAY_START);
   const [dayEnd, setDayEnd] = useState(DEFAULT_DAY_END);
-  const totalHours = dayEnd - dayStart;
 
-  // Pixel <-> time helpers depend on dayStart/dayEnd, so they're inside
-  // the component to close over current state.
+  // v2 defensive fallback: if dayEnd - dayStart is non-positive or absurd
+  // (legacy bad data, race condition, manual SQL gone sideways), fall
+  // back to 8-20 for rendering. Never surface a negative-length grid.
+  const isFallback =
+    dayEnd - dayStart <= 0 || dayEnd - dayStart > 24;
+  const effectiveDayStart = isFallback ? 8 : dayStart;
+  const effectiveDayEnd = isFallback ? 20 : dayEnd;
+  const totalHours = useMemo(() => {
+    const t = dayEnd - dayStart;
+    if (t <= 0 || t > 24) {
+      console.warn(
+        `[bookings] invalid working hours range: ${dayStart}-${dayEnd}, falling back to 8-20`
+      );
+      return 12;
+    }
+    return t;
+  }, [dayStart, dayEnd]);
+
+  // Pixel <-> time helpers depend on the effective range, so they're
+  // inside the component to close over current state.
   const yToTime = useCallback(
     (y: number): string => {
       const totalMinutes = round5(Math.floor((y / HOUR_HEIGHT) * 60));
-      const hour = dayStart + Math.floor(totalMinutes / 60);
+      const hour = effectiveDayStart + Math.floor(totalMinutes / 60);
       const min = totalMinutes % 60;
-      return `${String(Math.min(hour, dayEnd)).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+      return `${String(Math.min(hour, effectiveDayEnd)).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
     },
-    [dayStart, dayEnd]
+    [effectiveDayStart, effectiveDayEnd]
   );
 
   const timeToY = useCallback(
     (timeStr: string): number => {
       const [h, m] = timeStr.split(":").map(Number);
-      return (h - dayStart + m / 60) * HOUR_HEIGHT;
+      return (h - effectiveDayStart + m / 60) * HOUR_HEIGHT;
     },
-    [dayStart]
+    [effectiveDayStart]
   );
 
   const [showModal, setShowModal] = useState(false);
@@ -197,16 +208,29 @@ export default function BookingsPage() {
     setRole(document.cookie.match(/cbc_role=([^;]+)/)?.[1] || "");
     loadRooms();
     loadTenants();
-    // Fire-and-forget — defaults render fine if this fails.
+    // Fire-and-forget. v2: only commit the fetched values if both parse
+    // cleanly AND end > start. Anything else falls back to the
+    // useState defaults (8 / 20). The render path also has its own
+    // defensive fallback (effectiveDayStart/End), so even a bad commit
+    // here would still render — but better to filter at the source.
     api
       .get<{
         working_hours_start: string;
         working_hours_end: string;
-        min_booking_minutes: number;
       }>("/settings/booking")
-      .then((r) => {
-        setDayStart(parseHourString(r.data.working_hours_start, DEFAULT_DAY_START));
-        setDayEnd(parseHourString(r.data.working_hours_end, DEFAULT_DAY_END));
+      .then(({ data }) => {
+        const parseHour = (s: string | undefined): number | null => {
+          if (!s) return null;
+          const [h] = s.split(":");
+          const n = parseInt(h, 10);
+          return Number.isFinite(n) && n >= 0 && n <= 24 ? n : null;
+        };
+        const s = parseHour(data.working_hours_start);
+        const e = parseHour(data.working_hours_end);
+        if (s !== null && e !== null && e > s) {
+          setDayStart(s);
+          setDayEnd(e);
+        }
       })
       .catch(() => {
         /* keep defaults */
@@ -344,16 +368,17 @@ export default function BookingsPage() {
     setDragEnd(null);
   };
 
-  // Memoized — depends on dayStart/dayEnd which can change after the
-  // settings fetch resolves. Sliced at 5-minute granularity to match the
+  // Memoized — depends on the effective range which can change after
+  // the settings fetch resolves (and falls back to 8-20 if the stored
+  // range is bogus). Sliced at 5-minute granularity to match the
   // existing modal time-picker behavior.
   const timeSlots = useMemo(
     () =>
       Array.from(
-        { length: (dayEnd - dayStart) * 12 + 1 },
-        (_, i) => minToTime(dayStart * 60 + i * 5)
+        { length: (effectiveDayEnd - effectiveDayStart) * 12 + 1 },
+        (_, i) => minToTime(effectiveDayStart * 60 + i * 5)
       ),
-    [dayStart, dayEnd]
+    [effectiveDayStart, effectiveDayEnd]
   );
 
   return (
@@ -674,7 +699,7 @@ export default function BookingsPage() {
                         color: "var(--color-gray-400)",
                       }}
                     >
-                      {String(dayStart + i).padStart(2, "0")}:00
+                      {String(effectiveDayStart + i).padStart(2, "0")}:00
                     </div>
                   ))}
                 </div>
@@ -925,7 +950,7 @@ export default function BookingsPage() {
                     const fromMin = timeToMin(e.target.value);
                     const toMin = timeToMin(modalTo);
                     if (toMin <= fromMin)
-                      setModalTo(minToTime(Math.min(fromMin + 60, dayEnd * 60)));
+                      setModalTo(minToTime(Math.min(fromMin + 60, effectiveDayEnd * 60)));
                   }}
                   style={{
                     display: "block",
@@ -939,7 +964,7 @@ export default function BookingsPage() {
                   }}
                 >
                   {timeSlots
-                    .filter((t) => timeToMin(t) < dayEnd * 60)
+                    .filter((t) => timeToMin(t) < effectiveDayEnd * 60)
                     .map((t) => (
                       <option key={t} value={t}>
                         {t}
