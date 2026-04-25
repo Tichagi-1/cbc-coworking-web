@@ -80,25 +80,41 @@ export default function SettingsPage() {
 
   // Booking-window settings go through PATCH /settings/booking instead of
   // the per-key PUT /settings — server validates HH:00 format, min-minutes
-  // enum, and start<end. Surface 422 detail as a toast so the operator
-  // sees validation failures (not silently swallowed like saveSetting).
-  async function saveBookingSettings(
-    patch: Record<string, string | number>
+  // enum, and start<end. v2: on 422 (or any error) refetch the
+  // authoritative server state so local React state can't hold a value
+  // the server rejected. The v1 bug was: end='00:00' 422'd, but local
+  // state kept the bad value, /bookings then rendered a negative range
+  // and produced an empty grid.
+  async function handleBookingSettingChange(
+    key: string,
+    value: string | number
   ) {
+    // Optimistic local update so the <select> reflects the operator's
+    // pick immediately. Refetch on error rolls this back authoritatively.
+    setSettings((p) => ({ ...p, [key]: String(value) }));
     setSaving(true);
     try {
-      await api.patch("/settings/booking", patch);
-      // String-coerce values for the shared `settings` bag (it's typed
-      // Record<string,string>); the patch object itself is the
-      // ground-truth shape and we already optimistically applied it.
-      const stringified: Record<string, string> = {};
-      for (const [k, v] of Object.entries(patch)) {
-        stringified[k] = String(v);
-      }
-      setSettings((prev) => ({ ...prev, ...stringified }));
+      await api.patch("/settings/booking", { [key]: value });
       setToast("Saved");
       setTimeout(() => setToast(null), 2000);
     } catch (e: unknown) {
+      // Refetch authoritative state — overwrites the optimistic value
+      // with whatever the server has, so we never diverge.
+      try {
+        const fresh = await api.get<{
+          working_hours_start: string;
+          working_hours_end: string;
+          min_booking_minutes: number;
+        }>("/settings/booking");
+        setSettings((p) => ({
+          ...p,
+          working_hours_start: fresh.data.working_hours_start,
+          working_hours_end: fresh.data.working_hours_end,
+          min_booking_minutes: String(fresh.data.min_booking_minutes),
+        }));
+      } catch {
+        /* refetch failed — keep optimistic value, operator will see toast */
+      }
       const detail = (e as { response?: { data?: { detail?: unknown } } })
         ?.response?.data?.detail;
       const msg = typeof detail === "string" ? detail : "Save failed";
@@ -254,10 +270,9 @@ export default function SettingsPage() {
               Working Hours Start
               <select
                 value={settings.working_hours_start || "08:00"}
-                onChange={(e) => {
-                  setSettings((p) => ({ ...p, working_hours_start: e.target.value }));
-                  saveBookingSettings({ working_hours_start: e.target.value });
-                }}
+                onChange={(e) =>
+                  handleBookingSettingChange("working_hours_start", e.target.value)
+                }
                 style={inputStyle}
               >
                 {startHourOptions.map((h) => (
@@ -269,10 +284,9 @@ export default function SettingsPage() {
               Working Hours End
               <select
                 value={settings.working_hours_end || "20:00"}
-                onChange={(e) => {
-                  setSettings((p) => ({ ...p, working_hours_end: e.target.value }));
-                  saveBookingSettings({ working_hours_end: e.target.value });
-                }}
+                onChange={(e) =>
+                  handleBookingSettingChange("working_hours_end", e.target.value)
+                }
                 style={inputStyle}
               >
                 {endHourOptions.map((h) => (
@@ -285,10 +299,12 @@ export default function SettingsPage() {
             Minimum Booking (minutes)
             <select
               value={settings.min_booking_minutes || "5"}
-              onChange={(e) => {
-                setSettings((p) => ({ ...p, min_booking_minutes: e.target.value }));
-                saveBookingSettings({ min_booking_minutes: Number(e.target.value) });
-              }}
+              onChange={(e) =>
+                handleBookingSettingChange(
+                  "min_booking_minutes",
+                  Number(e.target.value)
+                )
+              }
               style={inputStyle}
             >
               {[5, 15, 30, 60].map((m) => (
