@@ -38,6 +38,25 @@ const timeToY = (time: string): number => {
   return (h - DAY_START + m / 60) * HOUR_HEIGHT;
 };
 
+// UZ convention: week starts Monday.
+const startOfWeekMon = (d: Date): Date => {
+  const day = d.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const diff = day === 0 ? -6 : 1 - day;
+  const r = new Date(d);
+  r.setDate(d.getDate() + diff);
+  r.setHours(0, 0, 0, 0);
+  return r;
+};
+
+const isoDate = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+};
+
+const WEEKDAY_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+
 export default function BookingsPage() {
   const [rooms, setRooms] = useState<Resource[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<Resource | null>(null);
@@ -52,6 +71,7 @@ export default function BookingsPage() {
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
+  const [view, setView] = useState<"day" | "week">("day");
 
   const [showModal, setShowModal] = useState(false);
   const [modalFrom, setModalFrom] = useState("09:00");
@@ -80,15 +100,28 @@ export default function BookingsPage() {
   const [dragStart, setDragStart] = useState<number | null>(null);
   const [dragEnd, setDragEnd] = useState<number | null>(null);
 
-  // Filter bookings for selected date
-  const dayBookings = bookings.filter((b) =>
-    b.start_time.startsWith(selectedDate)
-  );
+  // Bookings filtered for a specific day. Day view uses this once with the
+  // current selectedDate; week view calls it per column.
+  const bookingsForDate = (iso: string) =>
+    bookings.filter((b) => b.start_time.startsWith(iso));
+
+  // Mon..Sun ISO dates derived from selectedDate, computed once per render.
+  const weekDates: string[] =
+    view === "week"
+      ? (() => {
+          const mon = startOfWeekMon(new Date(selectedDate + "T00:00:00"));
+          return Array.from({ length: 7 }, (_, i) => {
+            const d = new Date(mon);
+            d.setDate(mon.getDate() + i);
+            return isoDate(d);
+          });
+        })()
+      : [];
 
   const loadRooms = async () => {
     try {
       const res = await api.get<Resource[]>("/resources", {
-        params: { type: "meeting_room" },
+        params: { type: "meeting_room,event_zone" },
       });
       setRooms(res.data);
       if (res.data.length > 0 && !selectedRoom)
@@ -101,14 +134,24 @@ export default function BookingsPage() {
   const loadBookings = useCallback(async () => {
     if (!selectedRoom) return;
     try {
-      const res = await api.get<Booking[]>("/bookings", {
-        params: { resource_id: selectedRoom.id },
-      });
+      const params: Record<string, string | number> = {
+        resource_id: selectedRoom.id,
+      };
+      if (view === "week") {
+        const mon = startOfWeekMon(new Date(selectedDate + "T00:00:00"));
+        const sun = new Date(mon);
+        sun.setDate(mon.getDate() + 6);
+        params.start = isoDate(mon);
+        params.end = isoDate(sun);
+      } else {
+        params.date = selectedDate;
+      }
+      const res = await api.get<Booking[]>("/bookings", { params });
       setBookings(res.data);
     } catch {
       /* noop */
     }
-  }, [selectedRoom]);
+  }, [selectedRoom, view, selectedDate]);
 
   const loadTenants = async () => {
     try {
@@ -215,26 +258,37 @@ export default function BookingsPage() {
     }
   };
 
-  const changeDate = (delta: number) => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + delta);
-    setSelectedDate(d.toISOString().slice(0, 10));
+  const changeDate = (deltaDays: number) => {
+    const d = new Date(selectedDate + "T00:00:00");
+    d.setDate(d.getDate() + deltaDays);
+    setSelectedDate(isoDate(d));
   };
 
-  // Timeline mouse handlers
-  const handleTimelineMouseDown = (e: React.MouseEvent) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const y = e.clientY - rect.top;
-    setDragStart(y);
-    setDragEnd(y);
-    setIsDragging(true);
-  };
+  const navStep = view === "week" ? 7 : 1;
+
+  // Timeline mouse handlers — `colDate` is the ISO date of the column the
+  // pointer is in. Day view always passes selectedDate; week view passes
+  // each column's own date. mouseUp commits selectedDate=colDate so all
+  // downstream consumers (preview ISO, handleBook ISO) point at the right day.
+  const handleTimelineMouseDown =
+    (colDate: string) => (e: React.MouseEvent) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      // Anchor the active day to the clicked column. In day view this is
+      // a no-op; in week view it scopes the drag ghost (gated below by
+      // colDate === selectedDate) and keeps preview/handleBook ISO-builds
+      // pointed at the right day.
+      if (colDate !== selectedDate) setSelectedDate(colDate);
+      setDragStart(y);
+      setDragEnd(y);
+      setIsDragging(true);
+    };
   const handleTimelineMouseMove = (e: React.MouseEvent) => {
     if (!isDragging) return;
     const rect = e.currentTarget.getBoundingClientRect();
     setDragEnd(e.clientY - rect.top);
   };
-  const handleTimelineMouseUp = () => {
+  const handleTimelineMouseUp = (colDate: string) => () => {
     if (!isDragging || dragStart === null || dragEnd === null) return;
     setIsDragging(false);
     const minY = Math.min(dragStart, dragEnd);
@@ -242,6 +296,7 @@ export default function BookingsPage() {
     if (maxY - minY < 5) return;
     const fromTime = yToTime(minY);
     const toTime = yToTime(maxY);
+    if (colDate !== selectedDate) setSelectedDate(colDate);
     setModalFrom(fromTime);
     setModalTo(toTime);
     setEditBooking(null);
@@ -420,7 +475,7 @@ export default function BookingsPage() {
           }}
         >
           <button
-            onClick={() => changeDate(-1)}
+            onClick={() => changeDate(-navStep)}
             style={{
               border: "1px solid var(--color-gray-300)",
               borderRadius: 6,
@@ -444,7 +499,7 @@ export default function BookingsPage() {
             }}
           />
           <button
-            onClick={() => changeDate(1)}
+            onClick={() => changeDate(navStep)}
             style={{
               border: "1px solid var(--color-gray-300)",
               borderRadius: 6,
@@ -471,139 +526,238 @@ export default function BookingsPage() {
           >
             Today
           </button>
+
+          {/* Day / Week toggle — matches existing button styling */}
+          <div
+            style={{
+              display: "inline-flex",
+              border: "1px solid var(--color-gray-300)",
+              borderRadius: 6,
+              overflow: "hidden",
+              marginLeft: 4,
+            }}
+          >
+            {(["day", "week"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                style={{
+                  border: "none",
+                  background: view === v ? "#003DA5" : "white",
+                  color: view === v ? "white" : "var(--color-gray-700)",
+                  padding: "6px 14px",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontWeight: view === v ? 600 : 500,
+                }}
+              >
+                {v === "day" ? "Day" : "Week"}
+              </button>
+            ))}
+          </div>
+
           <div style={{ marginLeft: "auto", fontWeight: 600, fontSize: 15 }}>
             {selectedRoom?.name || "Select a room"}
           </div>
         </div>
 
-        {/* Day timeline */}
+        {/* Timeline area — single column in day view, gutter + 7 columns in week view */}
         <div style={{ flex: 1, overflowY: "auto", padding: "8px 16px" }}>
           {selectedRoom ? (
-            <div
-              style={{
-                position: "relative",
-                height: TOTAL_HOURS * HOUR_HEIGHT,
-                cursor: "crosshair",
-                userSelect: "none",
-              }}
-              onMouseDown={handleTimelineMouseDown}
-              onMouseMove={handleTimelineMouseMove}
-              onMouseUp={handleTimelineMouseUp}
-              onMouseLeave={() => {
-                if (isDragging) {
-                  setIsDragging(false);
-                  setDragStart(null);
-                  setDragEnd(null);
-                }
-              }}
-            >
-              {/* Hour grid lines */}
-              {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => (
-                <div
-                  key={`h${i}`}
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    top: i * HOUR_HEIGHT,
-                    borderTop: "1px solid var(--color-gray-200)",
-                    display: "flex",
-                    alignItems: "center",
-                    pointerEvents: "none",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: "var(--color-gray-400)",
-                      width: 45,
-                      textAlign: "right",
-                      paddingRight: 8,
-                    }}
-                  >
-                    {String(DAY_START + i).padStart(2, "0")}:00
-                  </span>
-                </div>
-              ))}
-
-              {/* 30-min grid lines */}
-              {Array.from({ length: TOTAL_HOURS }, (_, i) => (
-                <div
-                  key={`m${i}`}
-                  style={{
-                    position: "absolute",
-                    left: 45,
-                    right: 0,
-                    top: i * HOUR_HEIGHT + HOUR_HEIGHT / 2,
-                    borderTop: "1px dashed var(--color-gray-100)",
-                    pointerEvents: "none",
-                  }}
-                />
-              ))}
-
-              {/* Existing bookings */}
-              {dayBookings.map((b) => {
-                const startT = b.start_time.slice(11, 16);
-                const endT = b.end_time.slice(11, 16);
-                const top = timeToY(startT);
-                const height = timeToY(endT) - top;
-                return (
-                  <div
-                    key={b.id}
-                    style={{
-                      position: "absolute",
-                      left: 50,
-                      right: 8,
-                      top,
-                      height: Math.max(height, 4),
-                      background: "#003DA5",
-                      borderRadius: 4,
-                      color: "white",
-                      fontSize: 12,
-                      padding: "2px 6px",
-                      overflow: "hidden",
-                      cursor: "pointer",
-                      zIndex: 2,
-                    }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={() => {
-                      setEditBooking(b);
-                      setModalFrom(startT);
-                      setModalTo(endT);
-                      setShowModal(true);
-                    }}
-                  >
-                    {b.tenant_name || "—"} — {startT}–{endT}
-                  </div>
-                );
-              })}
-
-              {/* Drag ghost */}
-              {isDragging && dragStart !== null && dragEnd !== null && (
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 50,
-                    right: 8,
-                    top: Math.min(dragStart, dragEnd),
-                    height: Math.abs(dragEnd - dragStart),
-                    background: "rgba(0,61,165,0.2)",
-                    border: "2px solid #003DA5",
-                    borderRadius: 4,
-                    pointerEvents: "none",
-                    zIndex: 3,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 12,
-                    color: "#003DA5",
-                    fontWeight: 600,
-                  }}
-                >
-                  {yToTime(Math.min(dragStart, dragEnd))} –{" "}
-                  {yToTime(Math.max(dragStart, dragEnd))}
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {/* Column headers (week view only) */}
+              {view === "week" && (
+                <div style={{ display: "flex", marginBottom: 4 }}>
+                  <div style={{ width: 45, flexShrink: 0 }} />
+                  {weekDates.map((iso, i) => {
+                    const d = new Date(iso + "T00:00:00");
+                    const isToday =
+                      iso === new Date().toISOString().slice(0, 10);
+                    return (
+                      <div
+                        key={iso}
+                        style={{
+                          flex: 1,
+                          textAlign: "center",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: isToday
+                            ? "#003DA5"
+                            : "var(--color-gray-700)",
+                          padding: "6px 0",
+                          borderBottom: isToday
+                            ? "2px solid #003DA5"
+                            : "1px solid var(--color-gray-200)",
+                        }}
+                      >
+                        {WEEKDAY_RU[i]}{" "}
+                        {String(d.getDate()).padStart(2, "0")}.
+                        {String(d.getMonth() + 1).padStart(2, "0")}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
+
+              {/* Timeline body: time gutter + N columns */}
+              <div
+                style={{
+                  display: "flex",
+                  position: "relative",
+                  height: TOTAL_HOURS * HOUR_HEIGHT,
+                  userSelect: "none",
+                }}
+              >
+                {/* Time-label gutter (rendered once, outside the columns) */}
+                <div
+                  style={{
+                    width: 45,
+                    flexShrink: 0,
+                    position: "relative",
+                    pointerEvents: "none",
+                  }}
+                >
+                  {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => (
+                    <div
+                      key={`tl${i}`}
+                      style={{
+                        position: "absolute",
+                        right: 8,
+                        top: i * HOUR_HEIGHT - 6,
+                        fontSize: 11,
+                        color: "var(--color-gray-400)",
+                      }}
+                    >
+                      {String(DAY_START + i).padStart(2, "0")}:00
+                    </div>
+                  ))}
+                </div>
+
+                {/* Day column(s) */}
+                {(view === "week" ? weekDates : [selectedDate]).map(
+                  (colDate) => (
+                    <div
+                      key={colDate}
+                      style={{
+                        flex: 1,
+                        position: "relative",
+                        height: TOTAL_HOURS * HOUR_HEIGHT,
+                        cursor: "crosshair",
+                        borderLeft: "1px solid var(--color-gray-200)",
+                      }}
+                      onMouseDown={handleTimelineMouseDown(colDate)}
+                      onMouseMove={handleTimelineMouseMove}
+                      onMouseUp={handleTimelineMouseUp(colDate)}
+                      onMouseLeave={() => {
+                        if (isDragging) {
+                          setIsDragging(false);
+                          setDragStart(null);
+                          setDragEnd(null);
+                        }
+                      }}
+                    >
+                      {/* Hour grid lines */}
+                      {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => (
+                        <div
+                          key={`h${i}`}
+                          style={{
+                            position: "absolute",
+                            left: 0,
+                            right: 0,
+                            top: i * HOUR_HEIGHT,
+                            borderTop:
+                              "1px solid var(--color-gray-200)",
+                            pointerEvents: "none",
+                          }}
+                        />
+                      ))}
+
+                      {/* 30-min grid lines */}
+                      {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                        <div
+                          key={`m${i}`}
+                          style={{
+                            position: "absolute",
+                            left: 0,
+                            right: 0,
+                            top: i * HOUR_HEIGHT + HOUR_HEIGHT / 2,
+                            borderTop:
+                              "1px dashed var(--color-gray-100)",
+                            pointerEvents: "none",
+                          }}
+                        />
+                      ))}
+
+                      {/* Existing bookings for this column's date */}
+                      {bookingsForDate(colDate).map((b) => {
+                        const startT = b.start_time.slice(11, 16);
+                        const endT = b.end_time.slice(11, 16);
+                        const top = timeToY(startT);
+                        const height = timeToY(endT) - top;
+                        return (
+                          <div
+                            key={b.id}
+                            style={{
+                              position: "absolute",
+                              left: 4,
+                              right: 4,
+                              top,
+                              height: Math.max(height, 4),
+                              background: "#003DA5",
+                              borderRadius: 4,
+                              color: "white",
+                              fontSize: 12,
+                              padding: "2px 6px",
+                              overflow: "hidden",
+                              cursor: "pointer",
+                              zIndex: 2,
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={() => {
+                              setEditBooking(b);
+                              setModalFrom(startT);
+                              setModalTo(endT);
+                              setShowModal(true);
+                            }}
+                          >
+                            {b.tenant_name || "—"} — {startT}–{endT}
+                          </div>
+                        );
+                      })}
+
+                      {/* Drag ghost — only on the column owning the drag */}
+                      {isDragging &&
+                        dragStart !== null &&
+                        dragEnd !== null &&
+                        colDate === selectedDate && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: 4,
+                              right: 4,
+                              top: Math.min(dragStart, dragEnd),
+                              height: Math.abs(dragEnd - dragStart),
+                              background: "rgba(0,61,165,0.2)",
+                              border: "2px solid #003DA5",
+                              borderRadius: 4,
+                              pointerEvents: "none",
+                              zIndex: 3,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 12,
+                              color: "#003DA5",
+                              fontWeight: 600,
+                            }}
+                          >
+                            {yToTime(Math.min(dragStart, dragEnd))} –{" "}
+                            {yToTime(Math.max(dragStart, dragEnd))}
+                          </div>
+                        )}
+                    </div>
+                  )
+                )}
+              </div>
             </div>
           ) : (
             <div
