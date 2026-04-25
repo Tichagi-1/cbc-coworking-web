@@ -1,15 +1,26 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { api } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
 import { getCurrencySymbol } from "@/lib/currency";
 import type { Resource, Booking } from "@/lib/types";
 
 const HOUR_HEIGHT = 60;
-const DAY_START = 8;
-const DAY_END = 20;
-const TOTAL_HOURS = DAY_END - DAY_START;
+
+// Day-start / day-end now come from app_settings (working_hours_start /
+// working_hours_end). The constants below are last-resort fallbacks if
+// the GET /settings/booking call fails on mount.
+const DEFAULT_DAY_START = 8;
+const DEFAULT_DAY_END = 20;
+
+// '24:00' from settings is allowed as the upper bound — parsed to 24 here
+// and used as a 24-hour upper edge in pixel calculations.
+const parseHourString = (s: string, fallback: number): number => {
+  if (s === "24:00") return 24;
+  const [h] = s.split(":").map(Number);
+  return Number.isFinite(h) ? h : fallback;
+};
 
 const minToTime = (min: number) => {
   const h = Math.floor(min / 60)
@@ -25,18 +36,6 @@ const timeToMin = (t: string) => {
 };
 
 const round5 = (min: number) => Math.round(min / 5) * 5;
-
-const yToTime = (y: number): string => {
-  const totalMinutes = round5(Math.floor((y / HOUR_HEIGHT) * 60));
-  const hour = DAY_START + Math.floor(totalMinutes / 60);
-  const min = totalMinutes % 60;
-  return `${String(Math.min(hour, DAY_END)).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
-};
-
-const timeToY = (time: string): number => {
-  const [h, m] = time.split(":").map(Number);
-  return (h - DAY_START + m / 60) * HOUR_HEIGHT;
-};
 
 // UZ convention: week starts Monday.
 const startOfWeekMon = (d: Date): Date => {
@@ -72,6 +71,32 @@ export default function BookingsPage() {
     new Date().toISOString().slice(0, 10)
   );
   const [view, setView] = useState<"day" | "week">("day");
+
+  // Working-hours window — fetched on mount from GET /settings/booking.
+  // Defaults render fine on first paint (and if the fetch fails).
+  const [dayStart, setDayStart] = useState(DEFAULT_DAY_START);
+  const [dayEnd, setDayEnd] = useState(DEFAULT_DAY_END);
+  const totalHours = dayEnd - dayStart;
+
+  // Pixel <-> time helpers depend on dayStart/dayEnd, so they're inside
+  // the component to close over current state.
+  const yToTime = useCallback(
+    (y: number): string => {
+      const totalMinutes = round5(Math.floor((y / HOUR_HEIGHT) * 60));
+      const hour = dayStart + Math.floor(totalMinutes / 60);
+      const min = totalMinutes % 60;
+      return `${String(Math.min(hour, dayEnd)).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+    },
+    [dayStart, dayEnd]
+  );
+
+  const timeToY = useCallback(
+    (timeStr: string): number => {
+      const [h, m] = timeStr.split(":").map(Number);
+      return (h - dayStart + m / 60) * HOUR_HEIGHT;
+    },
+    [dayStart]
+  );
 
   const [showModal, setShowModal] = useState(false);
   const [modalFrom, setModalFrom] = useState("09:00");
@@ -172,6 +197,20 @@ export default function BookingsPage() {
     setRole(document.cookie.match(/cbc_role=([^;]+)/)?.[1] || "");
     loadRooms();
     loadTenants();
+    // Fire-and-forget — defaults render fine if this fails.
+    api
+      .get<{
+        working_hours_start: string;
+        working_hours_end: string;
+        min_booking_minutes: number;
+      }>("/settings/booking")
+      .then((r) => {
+        setDayStart(parseHourString(r.data.working_hours_start, DEFAULT_DAY_START));
+        setDayEnd(parseHourString(r.data.working_hours_end, DEFAULT_DAY_END));
+      })
+      .catch(() => {
+        /* keep defaults */
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -305,10 +344,17 @@ export default function BookingsPage() {
     setDragEnd(null);
   };
 
-  const timeSlots = Array.from({ length: (20 - 8) * 12 + 1 }, (_, i) => {
-    const totalMin = 8 * 60 + i * 5;
-    return minToTime(totalMin);
-  });
+  // Memoized — depends on dayStart/dayEnd which can change after the
+  // settings fetch resolves. Sliced at 5-minute granularity to match the
+  // existing modal time-picker behavior.
+  const timeSlots = useMemo(
+    () =>
+      Array.from(
+        { length: (dayEnd - dayStart) * 12 + 1 },
+        (_, i) => minToTime(dayStart * 60 + i * 5)
+      ),
+    [dayStart, dayEnd]
+  );
 
   return (
     <div
@@ -604,7 +650,7 @@ export default function BookingsPage() {
                 style={{
                   display: "flex",
                   position: "relative",
-                  height: TOTAL_HOURS * HOUR_HEIGHT,
+                  height: totalHours * HOUR_HEIGHT,
                   userSelect: "none",
                 }}
               >
@@ -617,7 +663,7 @@ export default function BookingsPage() {
                     pointerEvents: "none",
                   }}
                 >
-                  {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => (
+                  {Array.from({ length: totalHours + 1 }, (_, i) => (
                     <div
                       key={`tl${i}`}
                       style={{
@@ -628,7 +674,7 @@ export default function BookingsPage() {
                         color: "var(--color-gray-400)",
                       }}
                     >
-                      {String(DAY_START + i).padStart(2, "0")}:00
+                      {String(dayStart + i).padStart(2, "0")}:00
                     </div>
                   ))}
                 </div>
@@ -641,7 +687,7 @@ export default function BookingsPage() {
                       style={{
                         flex: 1,
                         position: "relative",
-                        height: TOTAL_HOURS * HOUR_HEIGHT,
+                        height: totalHours * HOUR_HEIGHT,
                         cursor: "crosshair",
                         borderLeft: "1px solid var(--color-gray-200)",
                       }}
@@ -657,7 +703,7 @@ export default function BookingsPage() {
                       }}
                     >
                       {/* Hour grid lines */}
-                      {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => (
+                      {Array.from({ length: totalHours + 1 }, (_, i) => (
                         <div
                           key={`h${i}`}
                           style={{
@@ -673,7 +719,7 @@ export default function BookingsPage() {
                       ))}
 
                       {/* 30-min grid lines */}
-                      {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                      {Array.from({ length: totalHours }, (_, i) => (
                         <div
                           key={`m${i}`}
                           style={{
@@ -879,7 +925,7 @@ export default function BookingsPage() {
                     const fromMin = timeToMin(e.target.value);
                     const toMin = timeToMin(modalTo);
                     if (toMin <= fromMin)
-                      setModalTo(minToTime(Math.min(fromMin + 60, 20 * 60)));
+                      setModalTo(minToTime(Math.min(fromMin + 60, dayEnd * 60)));
                   }}
                   style={{
                     display: "block",
@@ -893,7 +939,7 @@ export default function BookingsPage() {
                   }}
                 >
                   {timeSlots
-                    .filter((t) => t < "20:00")
+                    .filter((t) => timeToMin(t) < dayEnd * 60)
                     .map((t) => (
                       <option key={t} value={t}>
                         {t}

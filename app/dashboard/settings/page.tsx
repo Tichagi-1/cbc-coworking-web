@@ -67,6 +67,37 @@ export default function SettingsPage() {
     }
   }
 
+  // Booking-window settings go through PATCH /settings/booking instead of
+  // the per-key PUT /settings — server validates HH:00 format, min-minutes
+  // enum, and start<end. Surface 422 detail as a toast so the operator
+  // sees validation failures (not silently swallowed like saveSetting).
+  async function saveBookingSettings(
+    patch: Record<string, string | number>
+  ) {
+    setSaving(true);
+    try {
+      await api.patch("/settings/booking", patch);
+      // String-coerce values for the shared `settings` bag (it's typed
+      // Record<string,string>); the patch object itself is the
+      // ground-truth shape and we already optimistically applied it.
+      const stringified: Record<string, string> = {};
+      for (const [k, v] of Object.entries(patch)) {
+        stringified[k] = String(v);
+      }
+      setSettings((prev) => ({ ...prev, ...stringified }));
+      setToast("Saved");
+      setTimeout(() => setToast(null), 2000);
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: unknown } } })
+        ?.response?.data?.detail;
+      const msg = typeof detail === "string" ? detail : "Save failed";
+      setToast(msg);
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function togglePermission(r: string, perm: string, enabled: boolean) {
     try {
       await api.put("/permissions", { role: r, permission: perm, enabled });
@@ -212,9 +243,14 @@ export default function SettingsPage() {
               Working Hours Start
               <input
                 type="time"
+                step={3600}
                 value={settings.working_hours_start || "08:00"}
                 onChange={(e) => setSettings((p) => ({ ...p, working_hours_start: e.target.value }))}
-                onBlur={() => saveSetting("working_hours_start", settings.working_hours_start || "08:00")}
+                onBlur={() =>
+                  saveBookingSettings({
+                    working_hours_start: settings.working_hours_start || "08:00",
+                  })
+                }
                 style={inputStyle}
               />
             </label>
@@ -222,9 +258,14 @@ export default function SettingsPage() {
               Working Hours End
               <input
                 type="time"
+                step={3600}
                 value={settings.working_hours_end || "20:00"}
                 onChange={(e) => setSettings((p) => ({ ...p, working_hours_end: e.target.value }))}
-                onBlur={() => saveSetting("working_hours_end", settings.working_hours_end || "20:00")}
+                onBlur={() =>
+                  saveBookingSettings({
+                    working_hours_end: settings.working_hours_end || "20:00",
+                  })
+                }
                 style={inputStyle}
               />
             </label>
@@ -235,7 +276,7 @@ export default function SettingsPage() {
               value={settings.min_booking_minutes || "5"}
               onChange={(e) => {
                 setSettings((p) => ({ ...p, min_booking_minutes: e.target.value }));
-                saveSetting("min_booking_minutes", e.target.value);
+                saveBookingSettings({ min_booking_minutes: Number(e.target.value) });
               }}
               style={inputStyle}
             >
