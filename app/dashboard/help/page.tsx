@@ -107,7 +107,7 @@ export default function HelpPage() {
     {
       id: "bookings",
       title: "Bookings",
-      perm: "view_workspace",
+      perm: "view_bookings",
       content: () => (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <P><B>Bookings calendar:</B> Shows all bookings for meeting rooms on a weekly calendar view.</P>

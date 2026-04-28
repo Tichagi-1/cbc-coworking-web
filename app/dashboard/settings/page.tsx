@@ -12,7 +12,7 @@ const PERMISSIONS_LIST = [
   { key: "view_analytics", label: "View analytics" },
   { key: "view_tenants", label: "View tenants" },
   { key: "view_floor_map", label: "View floor map" },
-  { key: "view_workspace", label: "View workspace" },
+  { key: "view_bookings", label: "View bookings" },
   { key: "edit_floor_map", label: "Edit floor map" },
   { key: "create_booking", label: "Create bookings" },
   { key: "cancel_booking", label: "Cancel bookings" },
