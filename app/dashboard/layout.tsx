@@ -14,7 +14,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/map", label: "Floor Map", icon: "🗺️", perm: "view_floor_map" },
   { href: "/dashboard/resources", label: "Resources", icon: "📦", perm: "manage_resources" },
   { href: "/dashboard/plans", label: "Plans", icon: "💰", perm: "manage_plans" },
-  { href: "/dashboard/bookings", label: "Bookings", icon: "📅", perm: "view_workspace" },
+  { href: "/dashboard/bookings", label: "Bookings", icon: "📅", perm: "view_bookings" },
   { href: "/dashboard/tenants", label: "Tenants", icon: "👥", perm: "view_tenants" },
   { href: "/dashboard/analytics", label: "Analytics", icon: "📊", perm: "view_analytics" },
   { href: "/dashboard/settings", label: "Settings", icon: "⚙️", perm: "manage_settings" },
